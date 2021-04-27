@@ -1,6 +1,6 @@
 # Mux
 
-Mux is a tools let your python function run as a server.
+Mux is a tool let your python function run as a server.
 
 Usage
 
