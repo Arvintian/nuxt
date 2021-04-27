@@ -22,6 +22,17 @@ QuickStart
 
 ```
 
+cat example.py
+
+from mux import route
+
+@route("/demo", methods=["GET"])
+def demo(request):
+    return {
+        "code": 200,
+        "result": "hello"
+    }
+
 mux --module example
 
 [2021-04-27 12:07:56 +0800] [4284] [INFO] Starting gunicorn 20.1.0
