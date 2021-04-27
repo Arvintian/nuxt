@@ -2,6 +2,14 @@
 
 nuxt is a tool let your python function run as a server.
 
+Install
+
+```
+
+pip install nuxt
+
+```
+
 Usage
 
 ```
