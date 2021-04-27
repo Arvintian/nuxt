@@ -22,7 +22,7 @@ QuickStart
 
 ```
 
-cat example.py
+> cat example.py
 
 from mux import route
 
@@ -33,7 +33,7 @@ def demo(request):
         "result": "hello"
     }
 
-mux --module example
+> mux --module example
 
 [2021-04-27 12:07:56 +0800] [4284] [INFO] Starting gunicorn 20.1.0
 [2021-04-27 12:07:56 +0800] [4284] [INFO] Listening at: http://0.0.0.0:5000 (4284)
@@ -41,7 +41,7 @@ mux --module example
 [2021-04-27 12:07:56 +0800] [4287] [INFO] Booting worker with pid: 4287
 [2021-04-27 12:07:56 +0800] [4288] [INFO] Booting worker with pid: 4288
 
-curl -v http://127.0.0.1:5000/demo
+> curl -v http://127.0.0.1:5000/demo
 
 
 * About to connect() to 127.0.0.1 port 5000 (#0)
