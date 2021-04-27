@@ -1,12 +1,12 @@
-# Mux
+# nuxt
 
-Mux is a tool let your python function run as a server.
+nuxt is a tool let your python function run as a server.
 
 Usage
 
 ```
 
-Usage: mux [OPTIONS]
+Usage: nuxt [OPTIONS]
 
 Options:
   --module TEXT      Your python module.
@@ -24,7 +24,7 @@ QuickStart
 
 > cat example.py
 
-from mux import route
+from nuxt import route
 
 @route("/demo", methods=["GET"])
 def demo(request):
@@ -33,7 +33,7 @@ def demo(request):
         "result": "hello"
     }
 
-> mux --module example
+> nuxt --module example
 
 [2021-04-27 12:07:56 +0800] [4284] [INFO] Starting gunicorn 20.1.0
 [2021-04-27 12:07:56 +0800] [4284] [INFO] Listening at: http://0.0.0.0:5000 (4284)

@@ -8,8 +8,8 @@ publish:
 
 
 install: build
-	pip uninstall -y mux
-	pip install dist/mux*
+	pip uninstall -y nuxt
+	pip install dist/nuxt*
 
 clean:
 	@rm -rf dist

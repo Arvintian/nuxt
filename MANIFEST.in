@@ -1,4 +1,4 @@
-graft mux
+graft nuxt
 
 include requirements.txt
 

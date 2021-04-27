@@ -9,20 +9,20 @@ os.chdir(os.path.dirname(sys.argv[0]) or ".")
 here = os.path.abspath(os.path.dirname(__file__))
 
 setup_args = dict(
-    name='mux',
+    name='nuxt',
     version='0.0.1',
     description='A tools let your python function run as a server.',
-    long_description="Mux is a tools let your python function run as a server.",
+    long_description="nuxt is a tools let your python function run as a server.",
     long_description_content_type="text/markdown",
     author='arvin',
     license='MIT',
-    url='https://github.com/Arvintian/mux',
+    url='https://github.com/Arvintian/nuxt',
     author_email='arvintian8@gamil.com',
     packages=find_packages(),
     include_package_data=True,
     entry_points='''
     [console_scripts]
-    mux=mux.cli:run
+    nuxt=nuxt.cli:run
     ''',
 )
 

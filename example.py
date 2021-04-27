@@ -1,4 +1,4 @@
-from mux import route
+from nuxt import route
 
 
 @route("/demo", methods=["GET"])
