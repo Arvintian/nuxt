@@ -3,10 +3,9 @@ import click
 import os
 import importlib
 from gunicorn.app.base import BaseApplication
-from .app import app
+from .wsgi_app import app
 from .utils import getcwd
-
-processes = []
+import json
 
 
 def start_server(address, port, workers):
@@ -36,22 +35,33 @@ def start_server(address, port, workers):
         "accesslog": "-",
         "errorlog": "-",
     }
+    gunicorn_options = app.config.get("gunicorn", {})
+    if gunicorn_options:
+        options.update(gunicorn_options)
+    if app.config.get("debug"):
+        app.logger.debug("gunicron config:{}".format(options))
     WebApplication(app, options).run()
-    return
 
 
 @click.command()
 @click.option("--module", default="", help="Your python module.")
+@click.option("--config", default="", help="Your nuxt app config json file path.")
 @click.option("--address", default="0.0.0.0", help="Listen and serve address.")
 @click.option("--port", default=5000, help="Listen and serve port.")
 @click.option("--workers", default=os.cpu_count(), help="Prefork work count, default is cpu core count.")
-def run(module, address, port, workers):
+def run(module: str, config: str, address: str, port: int, workers: int):
     chdir = getcwd()
     os.chdir(chdir)
     # add the path to sys.path
     if chdir not in sys.path:
         sys.path.insert(0, chdir)
-    # 1. import user's module
-    importlib.import_module(module)
-    # 2. start http server
+    # 1. load user config
+    if config:
+        with open(config) as fd:
+            cfg: dict = json.loads(fd.read())
+            app.__init__(cfg)
+    # 2. import user's module
+    _module = module.rstrip(".py")
+    importlib.import_module(_module)
+    # 3. start http server
     start_server(address, port, workers)

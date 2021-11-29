@@ -1,0 +1,10 @@
+{
+    "debug": true,
+    "middlewares": [
+        "tests.middleware.M1",
+        "tests.middleware.M2"
+    ],
+    "gunicorn": {
+        "workers": 1
+    }
+}
