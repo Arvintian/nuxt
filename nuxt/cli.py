@@ -38,35 +38,43 @@ def start_server(address, port, workers, module):
         "accesslog": "-",
         "errorlog": "-",
     }
+    # compatible with gunicorn cfg
     gunicorn_options = app.config.get("gunicorn", {})
     if gunicorn_options:
         options.update(gunicorn_options)
+    # debug mode
     if app.config.get("debug"):
         options.update({
             "reload": True,
             "preload": True,
+            "workers": 1
         })
         app.logger.debug("gunicron config:{}".format(options))
     WebApplication(app, options).run()
 
 
 @click.command()
-@click.option("--module", default="", help="Your python module.")
-@click.option("--config", default="", help="Your nuxt app config json file path.")
-@click.option("--address", default="0.0.0.0", help="Listen and serve address.")
-@click.option("--port", default=5000, help="Listen and serve port.")
-@click.option("--workers", default=os.cpu_count(), help="Prefork work count, default is cpu core count.")
-def run(module: str, config: str, address: str, port: int, workers: int):
+@click.option("--module", default="", type=str, help="Your python module.")
+@click.option("--config", default="", type=str, help="Your nuxt app config json file path.")
+@click.option("--debug", default=False, type=bool, help="Enable nuxt app debug mode.")
+@click.option("--address", default="0.0.0.0", type=str, help="Listen and serve address.")
+@click.option("--port", default=5000, type=int, help="Listen and serve port.")
+@click.option("--workers", default=os.cpu_count(), type=int, help="Prefork work count, default is cpu core count.")
+def run(module: str, config: str, debug: bool, address: str, port: int, workers: int):
     chdir = getcwd()
     os.chdir(chdir)
     # add the path to sys.path
     if chdir not in sys.path:
         sys.path.insert(0, chdir)
     # 1. load user config
+    cfg = {
+        "debug": debug
+    }
     if config:
         with open(config) as fd:
-            cfg: dict = json.loads(fd.read())
-            app.__init__(cfg)
+            json_cfg: dict = json.loads(fd.read())
+            cfg.update(json_cfg)
+    app.__init__(cfg)
     # 2. import user's module
     _module = module.rstrip(".py")
     module_type = importlib.import_module(_module)
