@@ -8,7 +8,7 @@ from .utils import getcwd
 import json
 
 
-def start_server(address, port, workers):
+def start_server(address, port, workers, module):
     """
     启动 http server
     """
@@ -27,6 +27,9 @@ def start_server(address, port, workers):
                 self.cfg.set(key.lower(), value)
 
         def load(self):
+            if options.get("preload"):
+                self.application.__init__(self.application.config)
+                importlib.reload(module)
             return self.application
 
     options = {
@@ -39,6 +42,10 @@ def start_server(address, port, workers):
     if gunicorn_options:
         options.update(gunicorn_options)
     if app.config.get("debug"):
+        options.update({
+            "reload": True,
+            "preload": True,
+        })
         app.logger.debug("gunicron config:{}".format(options))
     WebApplication(app, options).run()
 
@@ -62,6 +69,6 @@ def run(module: str, config: str, address: str, port: int, workers: int):
             app.__init__(cfg)
     # 2. import user's module
     _module = module.rstrip(".py")
-    importlib.import_module(_module)
+    module_type = importlib.import_module(_module)
     # 3. start http server
-    start_server(address, port, workers)
+    start_server(address, port, workers, module_type)
