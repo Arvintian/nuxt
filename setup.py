@@ -10,7 +10,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 
 setup_args = dict(
     name='nuxt',
-    version='0.0.4',
+    version='0.0.5',
     description='A tools let your python function run as a server.',
     long_description="nuxt is a tools let your python function run as a server.",
     long_description_content_type="text/markdown",
