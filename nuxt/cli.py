@@ -5,6 +5,7 @@ import importlib
 from gunicorn.app.base import BaseApplication
 from .wsgi_app import app
 from .utils import getcwd
+from copy import deepcopy
 import json
 
 
@@ -47,10 +48,23 @@ def start_server(address, port, workers, module):
         options.update({
             "reload": True,
             "preload": True,
-            "workers": 1
         })
         app.logger.debug("gunicron config:{}".format(options))
     WebApplication(app, options).run()
+
+
+def settings(cfg: dict) -> dict:
+    res = deepcopy(cfg)
+    # ignore command line args
+    ignore_command = ["debug"]
+    for key in ignore_command:
+        res.pop(key, None)
+    # ignore command gunicorn config
+    ignore_gunicorn = ["bind", "workers", "reload", "preload"]
+    gunicorn = res.get("gunicorn", {})
+    for key in ignore_gunicorn:
+        gunicorn.pop(key, None)
+    return res
 
 
 @click.command()
@@ -72,7 +86,7 @@ def run(module: str, config: str, debug: bool, address: str, port: int, workers:
     }
     if config:
         with open(config) as fd:
-            json_cfg: dict = json.loads(fd.read())
+            json_cfg: dict = settings(json.loads(fd.read()))
             cfg.update(json_cfg)
     app.__init__(cfg)
     # 2. import user's module

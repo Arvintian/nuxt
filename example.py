@@ -1,4 +1,4 @@
-from nuxt import route, Request
+from nuxt import route, Request, config
 from nuxt.repositorys.validation import use_args
 from webargs import fields
 
@@ -22,6 +22,7 @@ def demo_validation(req: Request, view_args: dict, json_args: dict, the_id):
     return {
         "code": 200,
         "result": {
+            "config": config.get("middlewares"),
             "view_args": view_args,
             "json_args": json_args,
             "the_id": the_id
