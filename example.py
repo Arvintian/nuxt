@@ -1,6 +1,7 @@
-from nuxt import route, Request, config
-from nuxt.repositorys.validation import use_args
-from webargs import fields
+from nuxt import Request, WebSocket, WebSocketDisconnect
+from nuxt import route, websocket_route
+from nuxt import config, logger
+from nuxt.repositorys.validation import use_args, fields
 
 
 @route("/demo", methods=["GET"])
@@ -28,3 +29,17 @@ def demo_validation(req: Request, view_args: dict, json_args: dict, the_id):
             "the_id": the_id
         }
     }
+
+
+@websocket_route("/ws/echo")
+async def ws_echo(socket: WebSocket):
+    await socket.accept()
+    try:
+        while True:
+            text = await socket.receive_text()
+            recv = "echoeeeeeeee:{}".format(text)
+            await socket.send_text(recv)
+    except WebSocketDisconnect as e:
+        pass
+    except Exception as e:
+        logger.error(e)

@@ -1,7 +1,8 @@
 from madara.wrappers import Request
+from webargs import fields as __args_fields
 from webargs import core
-import typing
 import marshmallow as ma
+import typing
 
 
 def is_json_request(req: Request):
@@ -65,3 +66,4 @@ class MadaraParser(core.Parser):
 parser = MadaraParser()
 use_args = parser.use_args
 use_kwargs = parser.use_kwargs
+fields = __args_fields

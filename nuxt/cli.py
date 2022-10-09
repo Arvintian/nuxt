@@ -44,7 +44,7 @@ class WebApplication(BaseApplication):
             if not should_reload:
                 return
             # reinit application
-            self.application.__init__(debug=self.application.debug, routes=self.application.routes)
+            self.application.__init__(debug=self.application.debug, routes=[])
             self.application.router.default = WSGIMiddleware(app=self.inner_wsgi_application)
             self.inner_wsgi_application.__init__(self.inner_wsgi_application.config)
             # reload modified module
@@ -140,6 +140,7 @@ def run(module: str, config: str, static: str, static_url_path, debug: bool, add
             json_cfg: dict = settings(json.loads(fd.read()))
             cfg.update(json_cfg)
     wsgi_app.__init__(cfg)
+    asgi_app.__init__(debug=cfg.get("debug"), routes=[])
     # 2. import user's module
     module_type = None
     if module:

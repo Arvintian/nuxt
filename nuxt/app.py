@@ -6,5 +6,5 @@ from madara.app import Madara
 wsgi_app = Madara()
 
 # setup asgi app
-asgi_app = Starlette(debug=wsgi_app.config.get("debug", False), routes=[])
+asgi_app = Starlette(debug=False, routes=[])
 asgi_app.router.default = WSGIMiddleware(app=wsgi_app)
