@@ -7,7 +7,7 @@ from webargs import fields
 def demo(request):
     return {
         "code": 200,
-        "result": "hello"
+        "result": "hello world"
     }
 
 

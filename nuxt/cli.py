@@ -1,9 +1,13 @@
-from nuxt.wsgi_app import app
+from nuxt.app import asgi_app, wsgi_app
 from nuxt.utils import getcwd
 from nuxt.reloader import reloader_engines
 from madara.app import Madara
 from gunicorn.app.base import BaseApplication
 from gunicorn.workers.base import Worker
+from starlette.staticfiles import StaticFiles
+from starlette.routing import Mount
+from starlette.applications import Starlette
+from a2wsgi import WSGIMiddleware
 from copy import deepcopy
 import traceback
 import threading
@@ -16,15 +20,16 @@ import json
 
 class WebApplication(BaseApplication):
 
-    def __init__(self, application, module, options=None):
+    def __init__(self, application: Starlette, inner_wsgi_application: Madara, module, options=None):
         self.options: dict = options or {}
-        self.application: Madara = application
+        self.application: Starlette = application
+        self.inner_wsgi_application: Madara = inner_wsgi_application
         self.module = module
         self.setup()
         super().__init__()
 
     def setup(self):
-        if self.application.config.get("debug"):
+        if self.options.get("debug"):
             self.options.update({
                 "post_fork": self.post_fork
             })
@@ -39,7 +44,9 @@ class WebApplication(BaseApplication):
             if not should_reload:
                 return
             # reinit application
-            self.application.__init__(self.application.config)
+            self.application.__init__(debug=self.application.debug, routes=self.application.routes)
+            self.application.router.default = WSGIMiddleware(app=self.inner_wsgi_application)
+            self.inner_wsgi_application.__init__(self.inner_wsgi_application.config)
             # reload modified module
             for module in tuple(sys.modules.values()):
                 if module == self.module:
@@ -48,15 +55,15 @@ class WebApplication(BaseApplication):
                     importlib.reload(module)
             # realod entry module
             importlib.reload(self.module)
-            self.application.logger.info("Worker reloading: %s modified", fname)
+            self.inner_wsgi_application.logger.info("Worker reloading: %s modified", fname)
         except Exception as e:
-            self.application.logger.error("Worker reload error {}".format(traceback.format_exc()))
+            self.inner_wsgi_application.logger.error("Worker reload error {}".format(traceback.format_exc()))
 
     def post_fork(self, server, worker: Worker):
         reloader_cls = reloader_engines["auto"]
         reloader: threading.Thread = reloader_cls(extra_files=[], callback=self.reload_app)
         reloader.start()
-        self.application.logger.debug("Worker {} start reload watch threading".format(worker.pid))
+        self.inner_wsgi_application.logger.debug("Worker {} start reload watch threading".format(worker.pid))
 
     def load_config(self):
         the_config = {key: value for key, value in self.options.items()
@@ -81,10 +88,18 @@ def start_server(address, port, workers, module):
         "preload": False,
     }
     # compatible with gunicorn cfg
-    gunicorn_cfg = app.config.get("gunicorn", {})
+    gunicorn_cfg = wsgi_app.config.get("gunicorn", {})
     if gunicorn_cfg:
         gunicorn_options.update(gunicorn_cfg)
-    WebApplication(app, module, gunicorn_options).run()
+    gunicorn_options.update({
+        "debug": wsgi_app.config.get("debug", False),
+        "worker_class": "uvicorn.workers.UvicornWorker"
+    })
+    if wsgi_app.config.get("debug"):
+        gunicorn_options.update({
+            "workers": 1,
+        })
+    WebApplication(asgi_app, wsgi_app, module, gunicorn_options).run()
 
 
 def settings(cfg: dict) -> dict:
@@ -104,11 +119,13 @@ def settings(cfg: dict) -> dict:
 @click.command()
 @click.option("--module", default="", type=str, help="Your python module.")
 @click.option("--config", default="", type=str, help="Your nuxt app config json file path.")
+@click.option("--static", default="", type=str, help="Your static file directory path.")
+@click.option("--static-url-path", default="/static", type=str, help="Your static url path.")
 @click.option("--debug", default=False, type=bool, help="Enable nuxt app debug mode.")
 @click.option("--address", default="0.0.0.0", type=str, help="Listen and serve address.")
 @click.option("--port", default=5000, type=int, help="Listen and serve port.")
 @click.option("--workers", default=os.cpu_count(), type=int, help="Prefork work count, default is cpu core count.")
-def run(module: str, config: str, debug: bool, address: str, port: int, workers: int):
+def run(module: str, config: str, static: str, static_url_path, debug: bool, address: str, port: int, workers: int):
     chdir = getcwd()
     os.chdir(chdir)
     # add the path to sys.path
@@ -119,12 +136,17 @@ def run(module: str, config: str, debug: bool, address: str, port: int, workers:
         "debug": debug
     }
     if config:
-        with open(config) as fd:
+        with open(config, "r", encoding="utf-8") as fd:
             json_cfg: dict = settings(json.loads(fd.read()))
             cfg.update(json_cfg)
-    app.__init__(cfg)
+    wsgi_app.__init__(cfg)
     # 2. import user's module
-    _module = module.rstrip(".py")
-    module_type = importlib.import_module(_module)
-    # 3. start http server
+    module_type = None
+    if module:
+        _module = module.rstrip(".py")
+        module_type = importlib.import_module(_module)
+    # 3. setup static file
+    if static:
+        asgi_app.routes.append(Mount(static_url_path, app=StaticFiles(directory=static, html=True), name="static"))
+    # 4. start http server
     start_server(address, port, workers, module_type)
