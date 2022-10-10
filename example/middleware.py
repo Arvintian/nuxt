@@ -1,4 +1,4 @@
-from pretty_logging import pretty_logger as logger
+from nuxt import logger
 import traceback
 
 

@@ -13,3 +13,10 @@ def getcwd():
     except Exception:
         cwd = os.getcwd()
     return cwd
+
+
+def remove_suffix(s: str, suffix: str) -> str:
+    if suffix and s.endswith(suffix):
+        return s[:-len(suffix)]
+    else:
+        return s[:]

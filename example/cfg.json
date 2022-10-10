@@ -1,7 +1,7 @@
 {
     "middlewares": [
-        "tests.middleware.M1",
-        "tests.middleware.M2"
+        "middleware.M1",
+        "middleware.M2"
     ],
     "gunicorn": {
         "access_log_format": "%(h)s %(l)s %(u)s %(t)s \"%(r)s\" %(s)s %(b)s \"%(f)s\" \"%(a)s\""

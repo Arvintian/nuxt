@@ -1,5 +1,5 @@
 from nuxt.app import asgi_app, wsgi_app
-from nuxt.utils import getcwd
+from nuxt.utils import getcwd, remove_suffix
 from nuxt.reloader import reloader_engines
 from madara.app import Madara
 from gunicorn.app.base import BaseApplication
@@ -45,8 +45,8 @@ class WebApplication(BaseApplication):
                 return
             # reinit application
             self.application.__init__(debug=self.application.debug, routes=[])
-            self.application.router.default = WSGIMiddleware(app=self.inner_wsgi_application)
             self.inner_wsgi_application.__init__(self.inner_wsgi_application.config)
+            self.application.router.default = WSGIMiddleware(app=self.inner_wsgi_application)
             # reload modified module
             for module in tuple(sys.modules.values()):
                 if module == self.module:
@@ -96,9 +96,7 @@ def start_server(address, port, workers, module):
         "worker_class": "uvicorn.workers.UvicornWorker"
     })
     if wsgi_app.config.get("debug"):
-        gunicorn_options.update({
-            "workers": 1,
-        })
+        gunicorn_options.update({"workers": 1})
     WebApplication(asgi_app, wsgi_app, module, gunicorn_options).run()
 
 
@@ -141,10 +139,11 @@ def run(module: str, config: str, static: str, static_url_path, debug: bool, add
             cfg.update(json_cfg)
     wsgi_app.__init__(cfg)
     asgi_app.__init__(debug=cfg.get("debug"), routes=[])
+    asgi_app.router.default = WSGIMiddleware(app=wsgi_app)
     # 2. import user's module
     module_type = None
     if module:
-        _module = module.rstrip(".py")
+        _module = remove_suffix(module, ".py")
         module_type = importlib.import_module(_module)
     # 3. setup static file
     if static:
