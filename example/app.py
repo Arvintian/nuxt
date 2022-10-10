@@ -1,7 +1,18 @@
 from nuxt import Request, WebSocket, WebSocketDisconnect
+from nuxt import render_template, render_html
 from nuxt.repositorys.validation import use_args, fields
 from nuxt import route, websocket_route
 from nuxt import config, logger
+
+
+@route("/", methods=["GET"])
+def index(request):
+    return render_template(request, "index.html", user="Arvin"), {"content-type": "text/html"}
+
+
+@route("/user/<string:name>", methods=["GET"])
+def user_info(request, name):
+    return render_html(request, "user/info.html", name="keria")
 
 
 @route("/demo", methods=["GET"])

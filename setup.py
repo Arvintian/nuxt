@@ -10,9 +10,9 @@ here = os.path.abspath(os.path.dirname(__file__))
 
 setup_args = dict(
     name='nuxt',
-    version='0.0.8',
-    description='A tools let your python function run as a server.',
-    long_description="nuxt is a tools let your python function run as a server.",
+    version='0.0.9',
+    description='A integration tools for build web app with python.',
+    long_description="Nuxt is a integration tools for build web app with python, built on top of [Madara](https://github.com/Arvintian/madara)/[Starlette](https://github.com/encode/starlette)/[Gunicorn](https://github.com/benoitc/gunicorn)/[Uvicorn](https://github.com/encode/uvicorn).",
     long_description_content_type="text/markdown",
     author='arvin',
     license='MIT',
@@ -22,7 +22,7 @@ setup_args = dict(
     include_package_data=True,
     entry_points='''
     [console_scripts]
-    nuxt=nuxt.cli:run
+    nuxt=nuxt.__main__:run
     ''',
 )
 

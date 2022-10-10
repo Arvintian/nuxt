@@ -1,12 +1,12 @@
 from nuxt.app import asgi_app, wsgi_app
 from nuxt.utils import getcwd, remove_suffix
 from nuxt.reloader import reloader_engines
-from madara.app import Madara
 from gunicorn.app.base import BaseApplication
 from gunicorn.workers.base import Worker
 from starlette.staticfiles import StaticFiles
 from starlette.routing import Mount
 from starlette.applications import Starlette
+from madara.app import Madara
 from a2wsgi import WSGIMiddleware
 from copy import deepcopy
 import traceback
@@ -137,6 +137,7 @@ def run(module: str, config: str, static: str, static_url_path, debug: bool, add
         with open(config, "r", encoding="utf-8") as fd:
             json_cfg: dict = settings(json.loads(fd.read()))
             cfg.update(json_cfg)
+    # 1.1 reinit app with cfg
     wsgi_app.__init__(cfg)
     asgi_app.__init__(debug=cfg.get("debug"), routes=[])
     asgi_app.router.default = WSGIMiddleware(app=wsgi_app)
