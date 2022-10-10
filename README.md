@@ -1,6 +1,6 @@
 # nuxt
 
-Nuxt is a integration tools for build web app with python, built on top of [Madara](https://github.com/Arvintian/madara)/[Starlette](https://github.com/encode/starlette)/[Gunicorn](https://github.com/benoitc/gunicorn)/[Uvicorn](https://github.com/encode/uvicorn).
+Nuxt is a integration tool for build web app with python, built on top of [Madara](https://github.com/Arvintian/madara)/[Starlette](https://github.com/encode/starlette)/[Gunicorn](https://github.com/benoitc/gunicorn)/[Uvicorn](https://github.com/encode/uvicorn).
 
 ## Install
 
@@ -120,6 +120,49 @@ The nuxt request object just a warp of [werkzeug request](https://werkzeug.palle
 
 The return value from a view function is automatically converted into a [werkzeug response](https://werkzeug.palletsprojects.com/en/1.0.x/wrappers/#werkzeug.wrappers.Response) for you. If the return value is a dict, which will serialize any supported JSON data type and set mimetype to application/json.
 
+### Websocket
+
+Nuxt's websocket route implemented by [starlette](https://www.starlette.io/websockets/). The handler function is a [ASGI](https://asgi.readthedocs.io/en/latest/) application, so you should write the handler function with python's [asyncio](https://docs.python.org/3/library/asyncio.html).
+
+```
+from nuxt import websocket_route,WebSocket
+
+@websocket_route("/ws/echo")
+async def ws_echo(socket: WebSocket):
+    await socket.accept()
+    try:
+        while True:
+            text = await socket.receive_text()
+            await socket.send_text(text)
+    except WebSocketDisconnect as e:
+        pass
+```
+
+### Template
+
+Nuxt's template engine powered by [jinja](https://jinja.palletsprojects.com/en/3.1.x/).
+
+```
+
+from nuxt import render_template
+from nuxt import route
+
+@route("/", methods=["GET"])
+def index(request):
+    return render_template(request, "index.html", user="Arvin"), {"content-type": "text/html"}
+
+```
+
+### Static
+
+Nuxt can be convenient serve static files, internally based on [starlette](https://www.starlette.io/staticfiles/) and [asyncio](https://docs.python.org/3/library/asyncio.html).
+
+```
+
+nuxt --static <directory path> --static-url-path  <request base url path>
+
+```
+
 ### Blueprint
 
 A Blueprint is a way to organize a group of related views and other code. Rather than registering views and other code directly with an application, they are registered with a blueprint.
@@ -179,10 +222,6 @@ The `get_response` callable provided by Nuxt might be the actual view (if this i
 
 Nuxt calls `process_exception()` when a view raises an exception. process_exception() should return either None or an response object.
 
-### Websocket
-
-
-### Static
-
-
 ### Deployment
+
+Nuxt is a production-ready tool, you just need to start it with a process management tool like [systemd](https://systemd.io/) or [supervisor](http://supervisord.org/).
