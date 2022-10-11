@@ -118,7 +118,7 @@ def settings(cfg: dict) -> dict:
 @click.option("--module", default="", type=str, help="Your python module.")
 @click.option("--config", default="", type=str, help="Your nuxt app config json file path.")
 @click.option("--static", default="", type=str, help="Your static file directory path.")
-@click.option("--static-url-path", default="/static", type=str, help="Your static url path.")
+@click.option("--static-url-path", default="", type=str, help="Your static url path, default is static directory path basename.")
 @click.option("--debug", default=False, type=bool, help="Enable nuxt app debug mode.")
 @click.option("--address", default="0.0.0.0", type=str, help="Listen and serve address.")
 @click.option("--port", default=5000, type=int, help="Listen and serve port.")
@@ -148,6 +148,8 @@ def run(module: str, config: str, static: str, static_url_path, debug: bool, add
         module_type = importlib.import_module(_module)
     # 3. setup static file
     if static:
+        if not static_url_path:
+            static_url_path = "/"+os.path.basename(os.path.realpath(static))
         asgi_app.routes.append(Mount(static_url_path, app=StaticFiles(directory=static, html=True), name="static"))
     # 4. start http server
     start_server(address, port, workers, module_type)
