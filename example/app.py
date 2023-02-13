@@ -1,3 +1,4 @@
+from nuxt import Blueprint, register_blueprint
 from nuxt import Request, WebSocket, WebSocketDisconnect
 from nuxt import render_template, render_html
 from nuxt.repositorys.validation import use_args, fields
@@ -50,3 +51,16 @@ async def ws_echo(socket: WebSocket):
         pass
     except Exception as e:
         logger.error(e)
+
+bp_api = Blueprint("bp_api")
+
+
+@bp_api.route("/demo", methods=["GET"])
+def api_demo(request):
+    return {
+        "code": 200,
+        "result": "hello world"
+    }
+
+
+register_blueprint(bp_api, url_prefix="/api")
