@@ -24,6 +24,14 @@ def demo(request):
     }
 
 
+@route("/demo/<arg>", methods=["GET"])
+def demo_args(request, arg: str):
+    return {
+        "code": 200,
+        "result": "hello {}".format(arg)
+    }
+
+
 @route("/args/<int:the_id>", methods=["GET"])
 @use_args({"the_id": fields.Int(required=True)}, location="view_args")
 @use_args({"body": fields.Int(required=True)}, location="json")

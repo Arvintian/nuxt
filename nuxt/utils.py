@@ -36,7 +36,10 @@ def to_asgi_pattern(pattern: str) -> str:
                 x = out.pop()
             param.reverse()
             params = "".join(param).split(":")
-            out.append("{%s:%s}" % (params[1], __convertor_type(params[0])))
+            if len(params) < 2:
+                out.append("{%s}" % (params[0]))
+            else:
+                out.append("{%s:%s}" % (params[1], __convertor_type(params[0])))
     return "".join(out)
 
 
