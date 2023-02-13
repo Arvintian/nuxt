@@ -1,4 +1,4 @@
-from nuxt.app import asgi_app, wsgi_app
+from nuxt.app import asgi_app, wsgi_app, wsgi_wapper_app
 from nuxt.utils import getcwd, remove_suffix
 from nuxt.reloader import reloader_engines
 from gunicorn.app.base import BaseApplication
@@ -140,7 +140,7 @@ def run(module: str, config: str, static: str, static_url_path, debug: bool, add
     # 1.1 reinit app with cfg
     wsgi_app.__init__(cfg)
     asgi_app.__init__(debug=cfg.get("debug"), routes=[])
-    asgi_app.router.default = WSGIMiddleware(app=wsgi_app)
+    asgi_app.router.default = wsgi_wapper_app
     # 2. import user's module
     module_type = None
     if module:
