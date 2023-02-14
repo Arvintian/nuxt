@@ -1,6 +1,6 @@
 # nuxt
 
-Nuxt is a integration tool for build web app with python, built on top of [Madara](https://github.com/Arvintian/madara)/[Starlette](https://github.com/encode/starlette)/[Gunicorn](https://github.com/benoitc/gunicorn)/[Uvicorn](https://github.com/encode/uvicorn).
+Nuxt is a integration framework for build web app with python, built on top of [Madara](https://github.com/Arvintian/madara)/[Starlette](https://github.com/encode/starlette)/[Gunicorn](https://github.com/benoitc/gunicorn)/[Uvicorn](https://github.com/encode/uvicorn).
 
 ## Install
 
@@ -49,7 +49,7 @@ def demo(request):
 
 [2021-04-27 12:07:56 +0800] [4284] [INFO] Starting gunicorn 20.1.0
 [2021-04-27 12:07:56 +0800] [4284] [INFO] Listening at: http://0.0.0.0:5000 (4284)
-[2021-04-27 12:07:56 +0800] [4284] [INFO] Using worker: sync
+[2021-04-27 12:07:56 +0800] [4284] [INFO] Using worker: uvicorn.workers.UvicornWorker
 [2021-04-27 12:07:56 +0800] [4287] [INFO] Booting worker with pid: 4287
 [2021-04-27 12:07:56 +0800] [4288] [INFO] Booting worker with pid: 4288
 
@@ -222,6 +222,6 @@ The `get_response` callable provided by Nuxt might be the actual view (if this i
 
 Nuxt calls `process_exception()` when a view raises an exception. process_exception() should return either None or an response object.
 
-### Deployment
+### Design
 
-Nuxt is a production-ready tool, you just need to start it with a process management tool like [systemd](https://systemd.io/) or [supervisor](http://supervisord.org/).
+Nuxt use uvicorn web server as the frontend, dispatch http request to wsgi/madara handlers or static file handlers, dispatch websocket request to asgi/starlette handlers.
