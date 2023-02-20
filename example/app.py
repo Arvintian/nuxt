@@ -13,7 +13,7 @@ def index(request):
 
 @route("/user/<string:name>", methods=["GET"])
 def user_info(request, name):
-    return render_html(request, "user/info.html", name="keria")
+    return render_html(request, "user/info.html", name=name)
 
 
 @route("/demo", methods=["GET"])

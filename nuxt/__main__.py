@@ -1,4 +1,4 @@
-from nuxt.app import asgi_app, wsgi_app, wsgi_wapper_app
+from nuxt.app import asgi_app, wsgi_app
 from nuxt.utils import getcwd, remove_suffix
 from nuxt.reloader import reloader_engines
 from gunicorn.app.base import BaseApplication
@@ -7,8 +7,8 @@ from starlette.staticfiles import StaticFiles
 from starlette.routing import Mount
 from starlette.applications import Starlette
 from madara.app import Madara
-from a2wsgi import WSGIMiddleware
 from copy import deepcopy
+from types import ModuleType
 import traceback
 import threading
 import sys
@@ -20,7 +20,7 @@ import json
 
 class WebApplication(BaseApplication):
 
-    def __init__(self, application: Starlette, inner_wsgi_application: Madara, module, options=None):
+    def __init__(self, application: Starlette, inner_wsgi_application: Madara, module: ModuleType, options=None):
         self.options: dict = options or {}
         self.application: Starlette = application
         self.inner_wsgi_application: Madara = inner_wsgi_application
@@ -44,9 +44,11 @@ class WebApplication(BaseApplication):
             if not should_reload:
                 return
             # reinit application
+            static_router = None
+            if self.inner_wsgi_application.config.get("static"):
+                static_router = self.application.routes.pop()
             self.application.__init__(debug=self.application.debug, routes=[])
             self.inner_wsgi_application.__init__(self.inner_wsgi_application.config)
-            self.application.router.default = WSGIMiddleware(app=self.inner_wsgi_application)
             # reload modified module
             for module in tuple(sys.modules.values()):
                 if module == self.module:
@@ -55,6 +57,7 @@ class WebApplication(BaseApplication):
                     importlib.reload(module)
             # realod entry module
             importlib.reload(self.module)
+            self.application.routes.append(static_router)
             self.inner_wsgi_application.logger.info("Worker reloading: %s modified", fname)
         except Exception as e:
             self.inner_wsgi_application.logger.error("Worker reload error {}".format(traceback.format_exc()))
@@ -66,8 +69,7 @@ class WebApplication(BaseApplication):
         self.inner_wsgi_application.logger.debug("Worker {} start reload watch threading".format(worker.pid))
 
     def load_config(self):
-        the_config = {key: value for key, value in self.options.items()
-                      if key in self.cfg.settings and value is not None}
+        the_config = {key: value for key, value in self.options.items() if key in self.cfg.settings and value is not None}
         for key, value in the_config.items():
             self.cfg.set(key.lower(), value)
 
@@ -131,7 +133,8 @@ def run(module: str, config: str, static: str, static_url_path, debug: bool, add
         sys.path.insert(0, chdir)
     # 1. load user config
     cfg = {
-        "debug": debug
+        "debug": debug,
+        "static": static != ""
     }
     if config:
         with open(config, "r", encoding="utf-8") as fd:
@@ -140,7 +143,6 @@ def run(module: str, config: str, static: str, static_url_path, debug: bool, add
     # 1.1 reinit app with cfg
     wsgi_app.__init__(cfg)
     asgi_app.__init__(debug=cfg.get("debug"), routes=[])
-    asgi_app.router.default = wsgi_wapper_app
     # 2. import user's module
     module_type = None
     if module:
