@@ -12,8 +12,15 @@ async def index(request):
 
 @route("/async/user/<string:name>", methods=["GET"])
 async def user_info(request, name):
-    logger.info("user name %s" % name)
     return render_html(request, "user/info.html", name=name)
+
+
+@route("/async/arg/<arg>", methods=["GET"])
+async def demo_args(request, arg: str):
+    return {
+        "code": 200,
+        "result": "async hello {}".format(arg)
+    }
 
 
 @websocket_route("/async/ws/echo")

@@ -4,7 +4,7 @@ from starlette.applications import Starlette
 from starlette.routing import BaseRoute, Route
 from starlette.requests import Request as ASGIRequest
 from starlette.websockets import WebSocket
-from nuxt.utils import format_pattern
+from nuxt.utils import format_pattern, make_response
 from concurrent.futures import ThreadPoolExecutor
 from a2wsgi.types import Receive, Scope, Send, WSGIApp, ASGIApp
 from a2wsgi.wsgi import WSGIResponder
@@ -183,11 +183,12 @@ class ASGIBlueprint:
         else:
             request = ASGIRequest(scope, receive, send)
 
-        response = await endpoint_func(request, **request.path_params)
+        rv = await endpoint_func(request, **request.path_params)
 
         if is_websocket:
             return
 
+        response = make_response(rv)
         await response(scope, receive, send)
 
     def get_responder(self, endpoint: str, func):
@@ -245,11 +246,12 @@ class ASGIApplication:
         else:
             request = ASGIRequest(scope, receive, send)
 
-        response = await endpoint_func(request, **request.path_params)
+        rv = await endpoint_func(request, **request.path_params)
 
         if is_websocket:
             return
 
+        response = make_response(rv)
         await response(scope, receive, send)
 
     def get_responder(self, endpoint: str, func):

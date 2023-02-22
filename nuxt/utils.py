@@ -1,3 +1,5 @@
+from starlette.responses import Response, JSONResponse
+from starlette.datastructures import Headers
 import os
 
 
@@ -41,6 +43,63 @@ def format_pattern(pattern: str) -> str:
             else:
                 out.append("{%s:%s}" % (params[1], __convertor_type(params[0])))
     return "".join(out)
+
+
+def make_response(*rv) -> Response:
+    if not rv:
+        return Response()
+
+    if len(rv) == 1:
+        rv = rv[0]
+
+    status = headers = None
+
+    # unpack tuple returns
+    if isinstance(rv, tuple):
+        len_rv = len(rv)
+
+        # a 3-tuple is unpacked directly
+        if len_rv == 3:
+            rv, status, headers = rv
+        # decide if a 2-tuple has status or headers
+        elif len_rv == 2:
+            if isinstance(rv[1], (Headers, dict, tuple, list)):
+                rv, headers = rv
+            else:
+                rv, status = rv
+        # other sized tuples are not allowed
+        else:
+            raise TypeError(
+                "The view function did not return a valid response tuple."
+                " The tuple must have the form (body, status, headers),"
+                " (body, status), or (body, headers)."
+            )
+
+    # the body must not be None
+    if rv is None:
+        raise TypeError(
+            "The view function did not return a valid response. The"
+            " function either returned None or ended without a return"
+            " statement."
+        )
+
+    # make sure the body is an instance of the response class
+    if not isinstance(rv, Response):
+        if isinstance(rv, (str, bytes, bytearray)):
+            rv = Response(rv, status_code=status if status else 200, headers=headers)
+            status = headers = None
+        elif isinstance(rv, dict):
+            rv = JSONResponse(content=rv)
+
+    # prefer the status if it was provided
+    if status is not None:
+        rv.status_code = status
+
+    # extend existing headers with provided headers
+    if headers:
+        rv.headers.update(headers)
+
+    return rv
 
 
 def __convertor_type(_type: str):
