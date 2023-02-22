@@ -22,7 +22,7 @@ def remove_suffix(s: str, suffix: str) -> str:
         return s[:]
 
 
-def to_asgi_pattern(pattern: str) -> str:
+def format_pattern(pattern: str) -> str:
     raw = pattern.replace("<", "{").replace(">", "}")
     out = []
     for c in raw:

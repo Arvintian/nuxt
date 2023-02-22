@@ -1,21 +1,24 @@
-from madara.app import Madara, Request, InternalServerError, NotFound, HTTPException
-from madara.utils import _endpoint_from_view_func
+from madara.app import Madara, Request, InternalServerError, NotFound, HTTPException, ImmutableDict
+from madara.utils import _endpoint_from_view_func, load_config
 from starlette.applications import Starlette
-from starlette.routing import Route
-from nuxt.utils import to_asgi_pattern
+from starlette.routing import BaseRoute, Route
+from starlette.requests import Request as ASGIRequest
+from starlette.websockets import WebSocket
+from nuxt.utils import format_pattern
 from concurrent.futures import ThreadPoolExecutor
-from a2wsgi.types import Receive, Scope, Send, WSGIApp
+from a2wsgi.types import Receive, Scope, Send, WSGIApp, ASGIApp
 from a2wsgi.wsgi import WSGIResponder
 import traceback
+import typing
 
 
-class WSGIApplicationResponder(object):
+class WSGIApplicationResponder:
 
     def __init__(self, app: WSGIApp, executor: ThreadPoolExecutor, endpoint: str) -> None:
         self.app, self.executor, self.endpoint = app, executor, endpoint
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        scope.update({"wsgi_endpoint": self.endpoint})
+        scope.update({"nuxt_endpoint": self.endpoint})
         if scope["type"] == "http":
             responder = WSGIResponder(self.app, self.executor)
             return await responder(scope, receive, send)
@@ -36,8 +39,9 @@ class WSGIApplicationResponder(object):
 
 class WSGIApplication(Madara):
 
-    def __init__(self, config: dict = None):
+    def __init__(self, app: Starlette, config: dict = None):
         super().__init__(config)
+        self.base_app = app
         self.executor = ThreadPoolExecutor(
             thread_name_prefix="WSGI", max_workers=self.config.get("workers", 10)
         )
@@ -72,7 +76,7 @@ class WSGIApplication(Madara):
         asgi_scope: dict = environ.get("asgi.scope")
         request = Request(environ)
         try:
-            request.endpoint, request.view_args = asgi_scope.get("wsgi_endpoint"), asgi_scope.get("path_params", {})
+            request.endpoint, request.view_args = asgi_scope.get("nuxt_endpoint"), asgi_scope.get("path_params", {})
             response = self._middleware_chain(request)
             return response(environ, start_response)
         except Exception as e:
@@ -90,25 +94,239 @@ class WSGIApplication(Madara):
                     response = self.make_response(request, InternalServerError(original_exception=e))
             return response(environ, start_response)
 
-    def get_asgi_endpoint(self, endpoint: str):
+    def get_responder(self, endpoint: str):
         return WSGIApplicationResponder(self, self.executor, endpoint)
 
-
-# setup wsgi app
-wsgi_app = WSGIApplication()
-
-# setup asgi app
-asgi_app = Starlette(debug=False, routes=[])
+    def add_url_rule(self, pattern: str, endpoint=None, view_func=None, provide_automatic_options=None, **options):
+        endpoint = endpoint if endpoint else _endpoint_from_view_func(view_func)
+        self.endpoint_map[endpoint] = view_func
+        self.base_app.router.routes.append(Route(format_pattern(pattern), self.get_responder(endpoint), methods=options.get("methods"), name=endpoint))
 
 
-_origin_add_url_rule = wsgi_app.add_url_rule
+class ASGIApplicationResponder:
+
+    def __init__(self, app: ASGIApp, endpoint: str) -> None:
+        self.app, self.endpoint = app, endpoint
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        scope.update({"nuxt_endpoint": self.endpoint})
+        await self.app(scope, receive, send)
 
 
-def __add_url_rule(pattern: str, endpoint=None, view_func=None, provide_automatic_options=None, **options):
-    if endpoint is None:
-        endpoint = _endpoint_from_view_func(view_func)
-    asgi_app.routes.append(Route(to_asgi_pattern(pattern), wsgi_app.get_asgi_endpoint(endpoint), methods=options.get("methods")))
-    return _origin_add_url_rule(pattern, endpoint, view_func, provide_automatic_options, **options)
+class ASGIBlueprintSetupState:
+
+    def __init__(self, blueprint, app: Starlette, options: dict):
+        self.app = app
+        self.blueprint = blueprint
+        self.options = options
+
+        url_prefix = self.options.get("url_prefix")
+        if url_prefix is None:
+            url_prefix = self.blueprint.url_prefix
+        self.url_prefix: str = url_prefix
+
+    def add_route(
+        self,
+        path: str,
+        route: typing.Callable,
+        methods: typing.Optional[typing.List[str]] = None,
+        name: typing.Optional[str] = None,
+        include_in_schema: bool = True,
+    ) -> None:
+        if self.url_prefix is not None:
+            path = "/".join((self.url_prefix.rstrip("/"), path.lstrip("/"))) if path else self.url_prefix
+        self.app.add_route(
+            path, route, methods=methods, name=name, include_in_schema=include_in_schema
+        )
+
+    def add_websocket_route(
+        self, path: str, route: typing.Callable, name: typing.Optional[str] = None
+    ) -> None:
+        if self.url_prefix is not None:
+            path = "/".join((self.url_prefix.rstrip("/"), path.lstrip("/"))) if path else self.url_prefix
+        self.app.add_websocket_route(path, route, name=name)
 
 
-wsgi_app.add_url_rule = __add_url_rule
+class ASGIBlueprint:
+
+    def __init__(self, name, url_prefix: str = ""):
+        self.name = name
+        self.url_prefix = url_prefix
+        self.deferred_functions = []
+        self.endpoint_map = {}
+        self.base_app: Starlette = None
+
+    def record(self, func):
+        self.deferred_functions.append(func)
+
+    def make_setup_state(self, app, options):
+        return ASGIBlueprintSetupState(self, app, options)
+
+    def register(self, app: Starlette, options: dict):
+        self.base_app = app
+        state = self.make_setup_state(app, options)
+        for deferred in self.deferred_functions:
+            deferred(state)
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if self.base_app is None:
+            raise Exception("ASGIBlueprint {} not registered".format(self.name))
+        endpoint = scope["nuxt_endpoint"]
+        endpoint_func = self.endpoint_map.get(endpoint, None)
+        if not endpoint_func:
+            await self.base_app.router.not_found(scope, receive, send)
+            return
+
+        is_websocket = scope["type"] == "websocket"
+        if is_websocket:
+            request = WebSocket(scope, receive, send)
+        else:
+            request = ASGIRequest(scope, receive, send)
+
+        response = await endpoint_func(request, **request.path_params)
+
+        if is_websocket:
+            return
+
+        await response(scope, receive, send)
+
+    def get_responder(self, endpoint: str, func):
+        self.endpoint_map[endpoint] = func
+        return ASGIApplicationResponder(self, endpoint)
+
+    def route(self, pattern: str, **options) -> typing.Callable:
+        endpoint = options.get("endpoint")
+        if endpoint:
+            assert "." not in endpoint, "ASGIBlueprint endpoints should not contain dots"
+
+        def decorator(func: typing.Callable) -> typing.Callable:
+            name = "%s.%s" % (self.name, endpoint if endpoint else _endpoint_from_view_func(func))
+            self.record(lambda state: state.add_route(
+                format_pattern(pattern),
+                self.get_responder(name, func),
+                methods=options.get("methods"),
+                name=name,
+                include_in_schema=options.get("include_in_schema"),
+            ))
+            return func
+
+        return decorator
+
+    def websocket_route(self, pattern: str, **options) -> typing.Callable:
+        endpoint = options.get("endpoint")
+        if endpoint:
+            assert "." not in endpoint, "ASGIBlueprint websocket endpoints should not contain dots"
+
+        def decorator(func: typing.Callable) -> typing.Callable:
+            name = "%s.%s" % (self.name, endpoint if endpoint else _endpoint_from_view_func(func))
+            self.record(lambda state: state.add_websocket_route(format_pattern(pattern), self.get_responder(name, func), name))
+            return func
+
+        return decorator
+
+
+class ASGIApplication:
+
+    def __init__(self, app: Starlette, config: dict = None) -> None:
+        self.base_app = app
+        self.endpoint_map = {}
+        self.blueprints = {}
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        endpoint = scope["nuxt_endpoint"]
+        endpoint_func = self.endpoint_map.get(endpoint, None)
+        if not endpoint_func:
+            await self.base_app.router.not_found(scope, receive, send)
+            return
+
+        is_websocket = scope["type"] == "websocket"
+        if is_websocket:
+            request = WebSocket(scope, receive, send)
+        else:
+            request = ASGIRequest(scope, receive, send)
+
+        response = await endpoint_func(request, **request.path_params)
+
+        if is_websocket:
+            return
+
+        await response(scope, receive, send)
+
+    def get_responder(self, endpoint: str, func):
+        self.endpoint_map[endpoint] = func
+        return ASGIApplicationResponder(self, endpoint)
+
+    def register_blueprint(self, blueprint: ASGIBlueprint, **options) -> None:
+        if blueprint.name in self.blueprints:
+            assert self.blueprints[blueprint.name] is blueprint, ('Blueprints %r and %r that are created on the fly need unique names.' % (
+                blueprint, self.blueprints[blueprint.name]))
+        else:
+            self.blueprints[blueprint.name] = blueprint
+        blueprint.register(self.base_app, options)
+
+    def route(self, pattern: str, **options) -> typing.Callable:
+
+        def decorator(func: typing.Callable) -> typing.Callable:
+            endpoint = options.get("endpoint") if options.get("endpoint") else _endpoint_from_view_func(func)
+            self.base_app.add_route(
+                format_pattern(pattern),
+                self.get_responder(endpoint, func),
+                methods=options.get("methods"),
+                name=endpoint,
+                include_in_schema=options.get("include_in_schema"),
+            )
+            return func
+
+        return decorator
+
+    def websocket_route(self, pattern: str, **options) -> typing.Callable:
+
+        def decorator(func: typing.Callable) -> typing.Callable:
+            endpoint = options.get("endpoint") if options.get("endpoint") else _endpoint_from_view_func(func)
+            self.base_app.add_websocket_route(format_pattern(pattern), self.get_responder(endpoint, func), name=endpoint)
+            return func
+
+        return decorator
+
+
+class NuxtApplication:
+
+    default_config = ImmutableDict(
+        {
+            "debug": False,
+            "middlewares": {
+                "sync": [],
+                "async": [],
+            },
+            "logger_handler": None,
+        }
+    )
+
+    def __init__(self, config: dict = None) -> None:
+        self.config = dict(self.default_config)
+        if not config is None:
+            self.config.update(load_config(config))
+
+        wsgi_config, asgi_config = {}, {}
+        for key, val in self.config.items():
+            wsgi_config[key], asgi_config[key] = val, val
+            if key == "middlewares":
+                wsgi_config[key], asgi_config[key] = val["sync"], val["async"]
+
+        self.base_app = Starlette(debug=self.config.get("debug"), routes=[])
+        self.wsgi_app = WSGIApplication(self.base_app, wsgi_config)
+        self.asgi_app = ASGIApplication(self.base_app, asgi_config)
+
+    @property
+    def routes(self) -> typing.List[BaseRoute]:
+        return self.base_app.router.routes
+
+    @property
+    def logger(self):
+        return self.wsgi_app.logger
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        await self.base_app(scope, receive, send)
+
+
+entry_app = NuxtApplication()

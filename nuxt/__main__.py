@@ -1,12 +1,10 @@
-from nuxt.app import asgi_app, wsgi_app
+from nuxt.app import NuxtApplication, entry_app
 from nuxt.utils import getcwd, remove_suffix
 from nuxt.reloader import reloader_engines
 from gunicorn.app.base import BaseApplication
 from gunicorn.workers.base import Worker
 from starlette.staticfiles import StaticFiles
 from starlette.routing import Mount
-from starlette.applications import Starlette
-from madara.app import Madara
 from copy import deepcopy
 from types import ModuleType
 import traceback
@@ -20,10 +18,9 @@ import json
 
 class WebApplication(BaseApplication):
 
-    def __init__(self, application: Starlette, inner_wsgi_application: Madara, module: ModuleType, options=None):
+    def __init__(self, application: NuxtApplication, module: ModuleType, options=None):
         self.options: dict = options or {}
-        self.application: Starlette = application
-        self.inner_wsgi_application: Madara = inner_wsgi_application
+        self.application: NuxtApplication = application
         self.module = module
         self.setup()
         super().__init__()
@@ -44,11 +41,10 @@ class WebApplication(BaseApplication):
             if not should_reload:
                 return
             # reinit application
-            static_router = None
-            if self.inner_wsgi_application.config.get("static"):
-                static_router = self.application.routes.pop()
-            self.application.__init__(debug=self.application.debug, routes=[])
-            self.inner_wsgi_application.__init__(self.inner_wsgi_application.config)
+            static_route = None
+            if self.application.config.get("static"):
+                static_route = self.application.routes.pop()
+            self.application.__init__(self.application.config)
             # reload modified module
             for module in tuple(sys.modules.values()):
                 if module == self.module:
@@ -57,16 +53,18 @@ class WebApplication(BaseApplication):
                     importlib.reload(module)
             # realod entry module
             importlib.reload(self.module)
-            self.application.routes.append(static_router)
-            self.inner_wsgi_application.logger.info("Worker reloading: %s modified", fname)
+            self.application.routes.append(static_route)
+            self.application.logger.info("Worker reloading: %s modified", fname)
+            for route in self.application.routes:
+                entry_app.logger.debug(route)
         except Exception as e:
-            self.inner_wsgi_application.logger.error("Worker reload error {}".format(traceback.format_exc()))
+            self.application.logger.error("Worker reload error {}".format(traceback.format_exc()))
 
     def post_fork(self, server, worker: Worker):
         reloader_cls = reloader_engines["auto"]
         reloader: threading.Thread = reloader_cls(extra_files=[], callback=self.reload_app)
         reloader.start()
-        self.inner_wsgi_application.logger.debug("Worker {} start reload watch threading".format(worker.pid))
+        self.application.logger.debug("Worker {} start reload watch threading".format(worker.pid))
 
     def load_config(self):
         the_config = {key: value for key, value in self.options.items() if key in self.cfg.settings and value is not None}
@@ -90,16 +88,16 @@ def start_server(address, port, workers, module):
         "preload": False,
     }
     # compatible with gunicorn cfg
-    gunicorn_cfg = wsgi_app.config.get("gunicorn", {})
+    gunicorn_cfg = entry_app.config.get("gunicorn", {})
     if gunicorn_cfg:
         gunicorn_options.update(gunicorn_cfg)
     gunicorn_options.update({
-        "debug": wsgi_app.config.get("debug", False),
+        "debug": entry_app.config.get("debug", False),
         "worker_class": "uvicorn.workers.UvicornWorker"
     })
-    if wsgi_app.config.get("debug"):
+    if entry_app.config.get("debug"):
         gunicorn_options.update({"workers": 1})
-    WebApplication(asgi_app, wsgi_app, module, gunicorn_options).run()
+    WebApplication(entry_app, module, gunicorn_options).run()
 
 
 def settings(cfg: dict) -> dict:
@@ -141,8 +139,7 @@ def run(module: str, config: str, static: str, static_url_path, debug: bool, add
             json_cfg: dict = settings(json.loads(fd.read()))
             cfg.update(json_cfg)
     # 1.1 reinit app with cfg
-    wsgi_app.__init__(cfg)
-    asgi_app.__init__(debug=cfg.get("debug"), routes=[])
+    entry_app.__init__(cfg)
     # 2. import user's module
     module_type = None
     if module:
@@ -152,6 +149,9 @@ def run(module: str, config: str, static: str, static_url_path, debug: bool, add
     if static:
         if not static_url_path:
             static_url_path = "/"+os.path.basename(os.path.realpath(static))
-        asgi_app.routes.append(Mount(static_url_path, app=StaticFiles(directory=static, html=True), name="static"))
+        entry_app.routes.append(Mount(static_url_path, app=StaticFiles(directory=static, html=True), name="nuxt.static"))
+    if cfg["debug"]:
+        for route in entry_app.routes:
+            entry_app.logger.debug(route)
     # 4. start http server
     start_server(address, port, workers, module_type)

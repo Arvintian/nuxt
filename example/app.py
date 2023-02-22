@@ -1,9 +1,10 @@
+import async_handler
+from nuxt import config, logger
 from nuxt import Blueprint, register_blueprint
-from nuxt import Request, WebSocket, WebSocketDisconnect
+from nuxt import Request, Response
 from nuxt import render_template, render_html
 from nuxt.repositorys.validation import use_args, fields
-from nuxt import route, websocket_route
-from nuxt import config, logger
+from nuxt import route
 
 
 @route("/", methods=["GET"])
@@ -46,19 +47,6 @@ def demo_validation(req: Request, view_args: dict, json_args: dict, the_id):
         }
     }
 
-
-@websocket_route("/ws/echo")
-async def ws_echo(socket: WebSocket):
-    await socket.accept()
-    try:
-        while True:
-            text = await socket.receive_text()
-            recv = "echo:{}".format(text)
-            await socket.send_text(recv)
-    except WebSocketDisconnect as e:
-        pass
-    except Exception as e:
-        logger.error(e)
 
 bp_api = Blueprint("bp_api")
 

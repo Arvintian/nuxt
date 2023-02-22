@@ -1,8 +1,11 @@
 {
-    "middlewares": [
-        "middleware.M1",
-        "middleware.M2"
-    ],
+    "middlewares": {
+        "sync": [
+            "middleware.M1",
+            "middleware.M2"
+        ],
+        "async": []
+    },
     "template": {
         "path": "templates"
     },
