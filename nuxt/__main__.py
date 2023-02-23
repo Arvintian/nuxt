@@ -1,9 +1,9 @@
 from nuxt.app import NuxtApplication, entry_app
 from nuxt.utils import getcwd, remove_suffix
 from nuxt.reloader import reloader_engines
+from nuxt.staticfiles import StaticFiles
 from gunicorn.app.base import BaseApplication
 from gunicorn.workers.base import Worker
-from starlette.staticfiles import StaticFiles
 from starlette.routing import Mount
 from copy import deepcopy
 from types import ModuleType
@@ -115,15 +115,16 @@ def settings(cfg: dict) -> dict:
 
 
 @click.command()
-@click.option("--module", default="", type=str, help="Your python module.")
+@click.option("--module", default="nuxt.repositorys.empty", type=str, help="Your python module.")
 @click.option("--config", default="", type=str, help="Your nuxt app config json file path.")
 @click.option("--static", default="", type=str, help="Your static file directory path.")
+@click.option("--static-index", default=False, type=bool, help="Display the index page if path in static is dir.")
 @click.option("--static-url-path", default="", type=str, help="Your static url path, default is static directory path basename.")
 @click.option("--debug", default=False, type=bool, help="Enable nuxt app debug mode.")
 @click.option("--address", default="0.0.0.0", type=str, help="Listen and serve address.")
 @click.option("--port", default=5000, type=int, help="Listen and serve port.")
 @click.option("--workers", default=os.cpu_count(), type=int, help="Prefork work count, default is cpu core count.")
-def run(module: str, config: str, static: str, static_url_path, debug: bool, address: str, port: int, workers: int):
+def run(module: str, config: str, static: str, static_index: bool, static_url_path, debug: bool, address: str, port: int, workers: int):
     chdir = getcwd()
     os.chdir(chdir)
     # add the path to sys.path
@@ -149,7 +150,7 @@ def run(module: str, config: str, static: str, static_url_path, debug: bool, add
     if static:
         if not static_url_path:
             static_url_path = "/"+os.path.basename(os.path.realpath(static))
-        entry_app.routes.append(Mount(static_url_path, app=StaticFiles(directory=static, html=True), name="nuxt.static"))
+        entry_app.routes.append(Mount(static_url_path, app=StaticFiles(directory=static, list_directory=static_index, html=True), name="nuxt.static"))
     if cfg["debug"]:
         for route in entry_app.routes:
             entry_app.logger.debug(route)
