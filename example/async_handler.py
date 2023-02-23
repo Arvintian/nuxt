@@ -23,6 +23,19 @@ async def demo_args(request, arg: str):
     }
 
 
+@route("/async/openapi", methods=["GET"])
+async def demo_openapi(request):
+    """
+    responses:
+      200:
+        description: A Hello.
+    """
+    return {
+        "code": 200,
+        "result": "hello world"
+    }
+
+
 @websocket_route("/async/ws/echo")
 async def ws_echo(socket: WebSocket):
     await socket.accept()

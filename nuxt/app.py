@@ -14,8 +14,9 @@ import typing
 
 class WSGIApplicationResponder:
 
-    def __init__(self, app: WSGIApp, executor: ThreadPoolExecutor, endpoint: str) -> None:
+    def __init__(self, app: WSGIApp, executor: ThreadPoolExecutor, endpoint: str, func: typing.Callable) -> None:
         self.app, self.executor, self.endpoint = app, executor, endpoint
+        self.__doc__ = func.__doc__
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         scope.update({"nuxt_endpoint": self.endpoint})
@@ -94,19 +95,21 @@ class WSGIApplication(Madara):
                     response = self.make_response(request, InternalServerError(original_exception=e))
             return response(environ, start_response)
 
-    def get_responder(self, endpoint: str):
-        return WSGIApplicationResponder(self, self.executor, endpoint)
+    def get_responder(self, endpoint: str, func):
+        return WSGIApplicationResponder(self, self.executor, endpoint, func)
 
     def add_url_rule(self, pattern: str, endpoint=None, view_func=None, provide_automatic_options=None, **options):
-        endpoint = endpoint if endpoint else _endpoint_from_view_func(view_func)
+        endpoint = "sync.%s" % (endpoint if endpoint else _endpoint_from_view_func(view_func))
         self.endpoint_map[endpoint] = view_func
-        self.base_app.router.routes.append(Route(format_pattern(pattern), self.get_responder(endpoint), methods=options.get("methods"), name=endpoint))
+        self.base_app.router.routes.append(Route(format_pattern(pattern), self.get_responder(endpoint, view_func),
+                                                 methods=options.get("methods"), name=endpoint))
 
 
 class ASGIApplicationResponder:
 
-    def __init__(self, app: ASGIApp, endpoint: str) -> None:
+    def __init__(self, app: ASGIApp, endpoint: str, func: typing.Callable) -> None:
         self.app, self.endpoint = app, endpoint
+        self.__doc__ = func.__doc__
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         scope.update({"nuxt_endpoint": self.endpoint})
@@ -193,7 +196,7 @@ class ASGIBlueprint:
 
     def get_responder(self, endpoint: str, func):
         self.endpoint_map[endpoint] = func
-        return ASGIApplicationResponder(self, endpoint)
+        return ASGIApplicationResponder(self, endpoint, func)
 
     def route(self, pattern: str, **options) -> typing.Callable:
         endpoint = options.get("endpoint")
@@ -201,13 +204,13 @@ class ASGIBlueprint:
             assert "." not in endpoint, "ASGIBlueprint endpoints should not contain dots"
 
         def decorator(func: typing.Callable) -> typing.Callable:
-            name = "%s.%s" % (self.name, endpoint if endpoint else _endpoint_from_view_func(func))
+            name = "async.%s.%s" % (self.name, endpoint if endpoint else _endpoint_from_view_func(func))
             self.record(lambda state: state.add_route(
                 format_pattern(pattern),
                 self.get_responder(name, func),
                 methods=options.get("methods"),
                 name=name,
-                include_in_schema=options.get("include_in_schema"),
+                include_in_schema=options.get("include_in_schema", True),
             ))
             return func
 
@@ -219,7 +222,7 @@ class ASGIBlueprint:
             assert "." not in endpoint, "ASGIBlueprint websocket endpoints should not contain dots"
 
         def decorator(func: typing.Callable) -> typing.Callable:
-            name = "%s.%s" % (self.name, endpoint if endpoint else _endpoint_from_view_func(func))
+            name = "async.%s.%s" % (self.name, endpoint if endpoint else _endpoint_from_view_func(func))
             self.record(lambda state: state.add_websocket_route(format_pattern(pattern), self.get_responder(name, func), name))
             return func
 
@@ -256,7 +259,7 @@ class ASGIApplication:
 
     def get_responder(self, endpoint: str, func):
         self.endpoint_map[endpoint] = func
-        return ASGIApplicationResponder(self, endpoint)
+        return ASGIApplicationResponder(self, endpoint, func)
 
     def register_blueprint(self, blueprint: ASGIBlueprint, **options) -> None:
         if blueprint.name in self.blueprints:
@@ -269,13 +272,13 @@ class ASGIApplication:
     def route(self, pattern: str, **options) -> typing.Callable:
 
         def decorator(func: typing.Callable) -> typing.Callable:
-            endpoint = options.get("endpoint") if options.get("endpoint") else _endpoint_from_view_func(func)
+            endpoint = "async.%s" % (options.get("endpoint") if options.get("endpoint") else _endpoint_from_view_func(func))
             self.base_app.add_route(
                 format_pattern(pattern),
                 self.get_responder(endpoint, func),
                 methods=options.get("methods"),
                 name=endpoint,
-                include_in_schema=options.get("include_in_schema"),
+                include_in_schema=options.get("include_in_schema", True),
             )
             return func
 
@@ -284,7 +287,7 @@ class ASGIApplication:
     def websocket_route(self, pattern: str, **options) -> typing.Callable:
 
         def decorator(func: typing.Callable) -> typing.Callable:
-            endpoint = options.get("endpoint") if options.get("endpoint") else _endpoint_from_view_func(func)
+            endpoint = "async.%s" % (options.get("endpoint") if options.get("endpoint") else _endpoint_from_view_func(func))
             self.base_app.add_websocket_route(format_pattern(pattern), self.get_responder(endpoint, func), name=endpoint)
             return func
 

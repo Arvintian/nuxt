@@ -17,11 +17,20 @@ def user_info(request, name):
     return render_html(request, "user/info.html", name=name)
 
 
-@route("/demo", methods=["GET"])
-def demo(request):
+@route("/openapi", methods=["GET"])
+def openapi(request: Request):
+    """
+    description: OpenAPI Schema Demo
+    parameters:
+      - name: limit
+        in: query
+        description: Limits the number of items on a page
+        schema:
+          type: integer
+    """
     return {
         "code": 200,
-        "result": "hello world"
+        "result": "the page limit {}".format(request.args("limit"))
     }
 
 

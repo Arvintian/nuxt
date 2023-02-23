@@ -2,6 +2,7 @@ from nuxt.app import NuxtApplication, entry_app
 from nuxt.utils import getcwd, remove_suffix
 from nuxt.reloader import reloader_engines
 from nuxt.staticfiles import StaticFiles
+from nuxt.openapi import SchemaGenerator
 from gunicorn.app.base import BaseApplication
 from gunicorn.workers.base import Worker
 from starlette.routing import Mount
@@ -41,9 +42,8 @@ class WebApplication(BaseApplication):
             if not should_reload:
                 return
             # reinit application
-            static_route = None
-            if self.application.config.get("static"):
-                static_route = self.application.routes.pop()
+            static_routes_count = (1 if self.application.config.get("static") else 0) + (2 if self.application.config.get("openapi") else 0)
+            static_routes = self.application.routes[-static_routes_count:]
             self.application.__init__(self.application.config)
             # reload modified module
             for module in tuple(sys.modules.values()):
@@ -53,7 +53,7 @@ class WebApplication(BaseApplication):
                     importlib.reload(module)
             # realod entry module
             importlib.reload(self.module)
-            self.application.routes.append(static_route)
+            self.application.routes.extend(static_routes)
             self.application.logger.info("Worker reloading: %s modified", fname)
             for route in self.application.routes:
                 entry_app.logger.debug(route)
@@ -117,6 +117,8 @@ def settings(cfg: dict) -> dict:
 @click.command()
 @click.option("--module", default="nuxt.repositorys.empty", type=str, help="Your python module.")
 @click.option("--config", default="", type=str, help="Your nuxt app config json file path.")
+@click.option("--openapi", default=False, type=bool, help="Enable openapi schema and swagger ui.")
+@click.option("--openapi-url-path", default="/docs", type=str, help="Openapi schema and ui path, default is /docs")
 @click.option("--static", default="", type=str, help="Your static file directory path.")
 @click.option("--static-index", default=False, type=bool, help="Display the index page if path in static is dir.")
 @click.option("--static-url-path", default="", type=str, help="Your static url path, default is static directory path basename.")
@@ -124,7 +126,8 @@ def settings(cfg: dict) -> dict:
 @click.option("--address", default="0.0.0.0", type=str, help="Listen and serve address.")
 @click.option("--port", default=5000, type=int, help="Listen and serve port.")
 @click.option("--workers", default=os.cpu_count(), type=int, help="Prefork work count, default is cpu core count.")
-def run(module: str, config: str, static: str, static_index: bool, static_url_path, debug: bool, address: str, port: int, workers: int):
+def run(module: str, config: str, openapi: bool, openapi_url_path: str, static: str, static_index: bool, static_url_path,
+        debug: bool, address: str, port: int, workers: int):
     chdir = getcwd()
     os.chdir(chdir)
     # add the path to sys.path
@@ -133,6 +136,7 @@ def run(module: str, config: str, static: str, static_index: bool, static_url_pa
     # 1. load user config
     cfg = {
         "debug": debug,
+        "openapi": openapi,
         "static": static != ""
     }
     if config:
@@ -146,11 +150,14 @@ def run(module: str, config: str, static: str, static_index: bool, static_url_pa
     if module:
         _module = remove_suffix(module, ".py")
         module_type = importlib.import_module(_module)
-    # 3. setup static file
+    # 3. setup internel route
+    if openapi:
+        schemas = SchemaGenerator({"openapi": "3.0.0", "info": {"title": "API", "version": "1.0"}}, url_prefx=openapi_url_path)
+        entry_app.routes.extend(schemas.routes())
     if static:
         if not static_url_path:
             static_url_path = "/"+os.path.basename(os.path.realpath(static))
-        entry_app.routes.append(Mount(static_url_path, app=StaticFiles(directory=static, list_directory=static_index, html=True), name="nuxt.static"))
+        entry_app.routes.append(Mount(static_url_path, app=StaticFiles(directory=static, list_directory=static_index, html=True), name="async.nuxt.static"))
     if cfg["debug"]:
         for route in entry_app.routes:
             entry_app.logger.debug(route)
