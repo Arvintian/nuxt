@@ -17,20 +17,20 @@ def user_info(request, name):
     return render_html(request, "user/info.html", name=name)
 
 
-@route("/openapi", methods=["GET"])
-def openapi(request: Request):
+@route("/openapi", methods=["PUT"])
+@use_args({"user_id": fields.Int(required=True)}, location="form")
+@use_args({"user_name": fields.Str(required=False)}, location="query")
+def openapi(request: Request, query_args: dict, form_args: dict):
     """
-    description: OpenAPI Schema Demo
-    parameters:
-      - name: limit
-        in: query
-        description: Limits the number of items on a page
-        schema:
-          type: integer
+    tags:
+      - test
     """
     return {
         "code": 200,
-        "result": "the page limit {}".format(request.args("limit"))
+        "result": {
+            "user_id": query_args,
+            "user_name": form_args
+        }
     }
 
 
@@ -42,7 +42,7 @@ def demo_args(request, arg: str):
     }
 
 
-@route("/args/<int:the_id>", methods=["GET"])
+@route("/args/<int:the_id>", methods=["POST"])
 @use_args({"the_id": fields.Int(required=True)}, location="view_args")
 @use_args({"body": fields.Int(required=True)}, location="json")
 def demo_validation(req: Request, view_args: dict, json_args: dict, the_id):

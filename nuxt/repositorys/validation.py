@@ -1,8 +1,12 @@
+from nuxt.utils import maschema_to_apisepc
 from madara.wrappers import Request
-from webargs import fields as __args_fields
+from webargs.core import ArgMap, ValidateArg, _UNKNOWN_DEFAULT_PARAM
+from webargs import fields as WebargsFields
 from webargs import core
+from collections.abc import Mapping
 import marshmallow as ma
 import typing
+import yaml
 
 
 def is_json_request(req: Request):
@@ -25,6 +29,51 @@ class MadaraParser(core.Parser):
         path="load_view_args",
         **core.Parser.__location_map__,
     )
+
+    def use_args(self, argmap: ArgMap,
+                 req: typing.Optional[Request] = None,
+                 *,
+                 location: typing.Optional[str] = None,
+                 unknown: typing.Optional[str] = _UNKNOWN_DEFAULT_PARAM,
+                 as_kwargs: bool = False,
+                 validate: ValidateArg = None,
+                 error_status_code: typing.Optional[int] = None,
+                 error_headers: typing.Optional[typing.Mapping[str, str]] = None):
+        inner_decorator = super().use_args(argmap, req, location=location, unknown=unknown, as_kwargs=as_kwargs,
+                                           validate=validate, error_status_code=error_status_code, error_headers=error_headers)
+
+        if isinstance(argmap, Mapping):
+            argmap = ma.Schema.from_dict(argmap)()
+        spec = maschema_to_apisepc(argmap)
+
+        def decorator(func):
+            parsed: dict = yaml.safe_load(func.__doc__) if func.__doc__ else None
+            if not parsed:
+                parsed = {"parameters": []}
+            parameters = parsed.get("parameters", [])
+            if location in ["view_args", "path", "querystring", "query"]:
+                requireds = spec.get("required", [])
+                param_in = "path" if location in ["view_args", "path"] else "query"
+                for key, schema in spec.get("properties", {}).items():
+                    parameters.append({
+                        "name": key,
+                        "in": param_in,
+                        "required": key in requireds,
+                        "schema": schema
+                    })
+                parsed["parameters"] = parameters
+            if location in ["json", "form"]:
+                content_type = "application/json" if location in ["json"] else "application/x-www-form-urlencoded"
+                parsed["requestBody"] = {
+                    "content": {
+                        content_type: {
+                            "schema": spec
+                        }
+                    }
+                }
+            func.__doc__ = yaml.dump(parsed)
+            return inner_decorator(func)
+        return decorator
 
     def _raw_load_json(self, req: Request):
         if not is_json_request(req):
@@ -66,4 +115,4 @@ class MadaraParser(core.Parser):
 parser = MadaraParser()
 use_args = parser.use_args
 use_kwargs = parser.use_kwargs
-fields = __args_fields
+fields = WebargsFields

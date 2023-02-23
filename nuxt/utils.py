@@ -1,5 +1,7 @@
 from starlette.responses import Response, JSONResponse
 from starlette.datastructures import Headers
+from apispec import APISpec
+from apispec.ext.marshmallow import MarshmallowPlugin
 import os
 
 
@@ -100,6 +102,17 @@ def make_response(*rv) -> Response:
         rv.headers.update(headers)
 
     return rv
+
+
+def maschema_to_apisepc(schema) -> dict:
+    spec = APISpec(
+        title="maschema",
+        version="1.0.0",
+        openapi_version="3.0.2",
+        plugins=[MarshmallowPlugin()],
+    )
+    spec.components.schema("maschema", schema=schema)
+    return spec.to_dict()["components"]["schemas"]["maschema"]
 
 
 def __convertor_type(_type: str):
