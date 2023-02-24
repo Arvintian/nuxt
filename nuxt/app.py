@@ -1,10 +1,11 @@
-from madara.app import Madara, Request, InternalServerError, NotFound, HTTPException, ImmutableDict
-from madara.utils import _endpoint_from_view_func, load_config
+from madara.blueprints import Blueprint as WSGIBlueprint
+from madara.app import Madara
 from starlette.applications import Starlette
-from starlette.routing import BaseRoute, Route
-from starlette.requests import Request as ASGIRequest
-from starlette.websockets import WebSocket
-from nuxt.utils import format_pattern, make_response
+from nuxt.routing import BaseRoute, Route
+from nuxt.datastructures import ImmutableDict
+from nuxt.requests import SyncRequest, AsyncRequest, WebSocket
+from nuxt.exceptions import SyncHTTPException, SyncNotFound, SyncInternalServerError
+from nuxt.utils import format_pattern, endpoint_from_view_func, load_config, make_sync_response, make_async_response
 from concurrent.futures import ThreadPoolExecutor
 from a2wsgi.types import Receive, Scope, Send, WSGIApp, ASGIApp
 from a2wsgi.wsgi import WSGIResponder
@@ -47,17 +48,17 @@ class WSGIApplication(Madara):
             thread_name_prefix="WSGI", max_workers=self.config.get("workers", 10)
         )
 
-    def dispatch_request(self, request: Request):
+    def dispatch_request(self, request: SyncRequest):
         try:
             endpoint, view_kwargs = request.endpoint, request.view_args
             endpoint_func = self.endpoint_map.get(endpoint, None)
             if not endpoint_func:
-                raise NotFound()
+                raise SyncNotFound()
             rv = self.process_view_by_middleware(request, endpoint_func, view_kwargs)
             if rv is None:
                 rv = endpoint_func(request, **view_kwargs)
             return self.make_response(request, rv)
-        except HTTPException as e:
+        except SyncHTTPException as e:
             return e
         except Exception as e:
             if not self._exception_middleware:
@@ -66,23 +67,23 @@ class WSGIApplication(Madara):
             try:
                 rv = self.process_exception_by_middleware(request, e)
                 if rv is None:
-                    return InternalServerError(original_exception=e)
+                    return SyncInternalServerError(original_exception=e)
                 return self.make_response(request, rv)
             except Exception as re:
                 # if exception process middleware raise a exception, log the traceback and return an InternalServerError.
                 self.logger.error(traceback.format_exc())
-                return InternalServerError(original_exception=e)
+                return SyncInternalServerError(original_exception=e)
 
     def wsgi_app(self, environ: dict, start_response):
         asgi_scope: dict = environ.get("asgi.scope")
-        request = Request(environ)
+        request = SyncRequest(environ)
         try:
             request.endpoint, request.view_args = asgi_scope.get("nuxt_endpoint"), asgi_scope.get("path_params", {})
             response = self._middleware_chain(request)
             return response(environ, start_response)
         except Exception as e:
             # process middleware chain __call__ error
-            response = self.make_response(request, InternalServerError(original_exception=e))
+            response = self.make_response(request, SyncInternalServerError(original_exception=e))
             if not self._exception_middleware:
                 self.logger.error(traceback.format_exc())
             else:
@@ -92,14 +93,17 @@ class WSGIApplication(Madara):
                     if not rv is None:
                         response = self.make_response(request, rv)
                 except Exception as re:
-                    response = self.make_response(request, InternalServerError(original_exception=e))
+                    response = self.make_response(request, SyncInternalServerError(original_exception=e))
             return response(environ, start_response)
+
+    def make_response(self, request, rv):
+        return make_sync_response(request, rv)
 
     def get_responder(self, endpoint: str, func):
         return WSGIApplicationResponder(self, self.executor, endpoint, func)
 
     def add_url_rule(self, pattern: str, endpoint=None, view_func=None, provide_automatic_options=None, **options):
-        endpoint = "sync.%s" % (endpoint if endpoint else _endpoint_from_view_func(view_func))
+        endpoint = "sync.%s" % (endpoint if endpoint else endpoint_from_view_func(view_func))
         self.endpoint_map[endpoint] = view_func
         self.base_app.router.routes.append(Route(format_pattern(pattern), self.get_responder(endpoint, view_func),
                                                  methods=options.get("methods"), name=endpoint))
@@ -184,14 +188,14 @@ class ASGIBlueprint:
         if is_websocket:
             request = WebSocket(scope, receive, send)
         else:
-            request = ASGIRequest(scope, receive, send)
+            request = AsyncRequest(scope, receive, send)
 
         rv = await endpoint_func(request, **request.path_params)
 
         if is_websocket:
             return
 
-        response = make_response(rv)
+        response = make_async_response(rv)
         await response(scope, receive, send)
 
     def get_responder(self, endpoint: str, func):
@@ -204,7 +208,7 @@ class ASGIBlueprint:
             assert "." not in endpoint, "ASGIBlueprint endpoints should not contain dots"
 
         def decorator(func: typing.Callable) -> typing.Callable:
-            name = "async.%s.%s" % (self.name, endpoint if endpoint else _endpoint_from_view_func(func))
+            name = "async.%s.%s" % (self.name, endpoint if endpoint else endpoint_from_view_func(func))
             self.record(lambda state: state.add_route(
                 format_pattern(pattern),
                 self.get_responder(name, func),
@@ -222,7 +226,7 @@ class ASGIBlueprint:
             assert "." not in endpoint, "ASGIBlueprint websocket endpoints should not contain dots"
 
         def decorator(func: typing.Callable) -> typing.Callable:
-            name = "async.%s.%s" % (self.name, endpoint if endpoint else _endpoint_from_view_func(func))
+            name = "async.%s.%s" % (self.name, endpoint if endpoint else endpoint_from_view_func(func))
             self.record(lambda state: state.add_websocket_route(format_pattern(pattern), self.get_responder(name, func), name))
             return func
 
@@ -247,14 +251,14 @@ class ASGIApplication:
         if is_websocket:
             request = WebSocket(scope, receive, send)
         else:
-            request = ASGIRequest(scope, receive, send)
+            request = AsyncRequest(scope, receive, send)
 
         rv = await endpoint_func(request, **request.path_params)
 
         if is_websocket:
             return
 
-        response = make_response(rv)
+        response = make_async_response(rv)
         await response(scope, receive, send)
 
     def get_responder(self, endpoint: str, func):
@@ -272,7 +276,7 @@ class ASGIApplication:
     def route(self, pattern: str, **options) -> typing.Callable:
 
         def decorator(func: typing.Callable) -> typing.Callable:
-            endpoint = "async.%s" % (options.get("endpoint") if options.get("endpoint") else _endpoint_from_view_func(func))
+            endpoint = "async.%s" % (options.get("endpoint") if options.get("endpoint") else endpoint_from_view_func(func))
             self.base_app.add_route(
                 format_pattern(pattern),
                 self.get_responder(endpoint, func),
@@ -287,7 +291,7 @@ class ASGIApplication:
     def websocket_route(self, pattern: str, **options) -> typing.Callable:
 
         def decorator(func: typing.Callable) -> typing.Callable:
-            endpoint = "async.%s" % (options.get("endpoint") if options.get("endpoint") else _endpoint_from_view_func(func))
+            endpoint = "async.%s" % (options.get("endpoint") if options.get("endpoint") else endpoint_from_view_func(func))
             self.base_app.add_websocket_route(format_pattern(pattern), self.get_responder(endpoint, func), name=endpoint)
             return func
 

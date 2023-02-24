@@ -3,9 +3,9 @@ from nuxt.utils import getcwd, remove_suffix
 from nuxt.reloader import reloader_engines
 from nuxt.staticfiles import StaticFiles
 from nuxt.openapi import SchemaGenerator
+from nuxt.routing import Mount
 from gunicorn.app.base import BaseApplication
 from gunicorn.workers.base import Worker
-from starlette.routing import Mount
 from copy import deepcopy
 from types import ModuleType
 import traceback

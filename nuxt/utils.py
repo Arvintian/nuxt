@@ -1,7 +1,11 @@
-from starlette.responses import Response, JSONResponse
-from starlette.datastructures import Headers
-from apispec import APISpec
+from nuxt.responses import AsyncResponse, AsyncJSONResponse
+from nuxt.datastructures import AsyncHeaders
+from madara.utils import _endpoint_from_view_func as endpoint_from_view_func
+from madara.wrappers import make_response as make_sync_response
+from madara.utils import load_config
+from werkzeug.local import LocalProxy
 from apispec.ext.marshmallow import MarshmallowPlugin
+from apispec import APISpec
 import os
 
 
@@ -47,9 +51,9 @@ def format_pattern(pattern: str) -> str:
     return "".join(out)
 
 
-def make_response(*rv) -> Response:
+def make_async_response(*rv) -> AsyncResponse:
     if not rv:
-        return Response()
+        return AsyncResponse()
 
     if len(rv) == 1:
         rv = rv[0]
@@ -65,7 +69,7 @@ def make_response(*rv) -> Response:
             rv, status, headers = rv
         # decide if a 2-tuple has status or headers
         elif len_rv == 2:
-            if isinstance(rv[1], (Headers, dict, tuple, list)):
+            if isinstance(rv[1], (AsyncHeaders, dict, tuple, list)):
                 rv, headers = rv
             else:
                 rv, status = rv
@@ -86,12 +90,12 @@ def make_response(*rv) -> Response:
         )
 
     # make sure the body is an instance of the response class
-    if not isinstance(rv, Response):
+    if not isinstance(rv, AsyncResponse):
         if isinstance(rv, (str, bytes, bytearray)):
-            rv = Response(rv, status_code=status if status else 200, headers=headers)
+            rv = AsyncResponse(rv, status_code=status if status else 200, headers=headers)
             status = headers = None
         elif isinstance(rv, dict):
-            rv = JSONResponse(content=rv)
+            rv = AsyncJSONResponse(content=rv)
 
     # prefer the status if it was provided
     if status is not None:

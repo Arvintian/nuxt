@@ -18,8 +18,6 @@ def user_info(request, name):
 
 
 @route("/openapi", methods=["PUT"])
-@use_args({"user_id": fields.Int(required=True)}, location="form")
-@use_args({"user_name": fields.Str(required=False)}, location="query")
 def openapi(request: Request, query_args: dict, form_args: dict):
     """
     tags:
