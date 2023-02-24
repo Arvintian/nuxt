@@ -1,4 +1,4 @@
-from madara.blueprints import Blueprint as WSGIBlueprint
+from madara.blueprints import Blueprint as MadaraBlueprint
 from madara.app import Madara
 from starlette.applications import Starlette
 from nuxt.routing import BaseRoute, Route
@@ -37,6 +37,19 @@ class WSGIApplicationResponder:
             assert message["type"] == "lifespan.shutdown"
             await send({"type": "lifespan.shutdown.complete"})
             return
+
+
+class WSGIBlueprint(MadaraBlueprint):
+
+    def route(self, pattern, **options):
+
+        def decorator(func):
+            endpoint = options.pop("endpoint", func.__name__)
+            self.endpoint_map["sync.%s.%s" % (self.name, endpoint)] = func
+            self.add_url_rule(pattern, endpoint, self.view_entry, **options)
+            return func
+
+        return decorator
 
 
 class WSGIApplication(Madara):
@@ -100,11 +113,11 @@ class WSGIApplication(Madara):
         return make_sync_response(request, rv)
 
     def get_responder(self, endpoint: str, func):
+        self.endpoint_map[endpoint] = func
         return WSGIApplicationResponder(self, self.executor, endpoint, func)
 
     def add_url_rule(self, pattern: str, endpoint=None, view_func=None, provide_automatic_options=None, **options):
         endpoint = "sync.%s" % (endpoint if endpoint else endpoint_from_view_func(view_func))
-        self.endpoint_map[endpoint] = view_func
         self.base_app.router.routes.append(Route(format_pattern(pattern), self.get_responder(endpoint, view_func),
                                                  methods=options.get("methods"), name=endpoint))
 

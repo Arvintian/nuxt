@@ -62,7 +62,7 @@ bp_api = Blueprint("bp_api")
 def api_demo(request):
     return {
         "code": 200,
-        "result": "hello world"
+        "result": "bp api demo"
     }
 
 
