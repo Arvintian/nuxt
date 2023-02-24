@@ -1,11 +1,11 @@
 from nuxt.app import WSGIApplicationResponder, ASGIApplicationResponder
-from starlette.schemas import SchemaGenerator as _SchemaGenerator
-from starlette.schemas import EndpointInfo
-from starlette.routing import BaseRoute, Route, Mount
-from starlette.requests import Request
-from starlette.responses import HTMLResponse
+from nuxt.routing import BaseRoute, Route, Mount
+from nuxt.responses import AsyncHTMLResponse, AsyncResponse
+from nuxt.requests import AsyncRequest
 import typing
 import json
+import yaml
+import re
 
 swagger_ui_default_parameters = {
     "dom_id": "#swagger-ui",
@@ -16,12 +16,31 @@ swagger_ui_default_parameters = {
 }
 
 
-class SchemaGenerator(_SchemaGenerator):
+class OpenAPIResponse(AsyncResponse):
+    media_type = "text/yaml"
+
+    def render(self, content: typing.Any) -> bytes:
+        return yaml.dump(content, default_flow_style=False).encode("utf-8")
+
+
+class EndpointInfo(typing.NamedTuple):
+    path: str
+    http_method: str
+    func: typing.Callable
+
+
+class SchemaGenerator:
 
     def __init__(self, base_schema: dict, url_prefx: str = "/docs") -> None:
-        super().__init__(base_schema)
+        self.base_schema = base_schema
         self.url_prefix = url_prefx
-        self.url_schema = "%s/%s" % (self.url_prefix.rstrip("/"), "schemas")
+        self.url_schema = "%s/%s" % (self.url_prefix.rstrip("/"), "openapi")
+
+    def routes(self):
+        return [
+            Route(self.url_prefix, self.SwaggerUIResponse, name="async.nuxt.docs", include_in_schema=False),
+            Route(self.url_schema, self.OpenAPIResponse, name="async.nuxt.schemas", include_in_schema=False),
+        ]
 
     def get_schema(self, routes: typing.List[BaseRoute]) -> dict:
         schema = dict(self.base_schema)
@@ -83,13 +102,43 @@ class SchemaGenerator(_SchemaGenerator):
 
         return endpoints_info
 
-    def routes(self):
-        return [
-            Route(self.url_prefix, self.SwaggerUIResponse, name="async.nuxt.docs", include_in_schema=False),
-            Route(self.url_schema, self.OpenAPIResponse, name="async.nuxt.schemas", include_in_schema=False),
-        ]
+    def _remove_converter(self, path: str) -> str:
+        """
+        Remove the converter from the path.
+        For example, a route like this:
+            Route("/users/{id:int}", endpoint=get_user, methods=["GET"])
+        Should be represented as `/users/{id}` in the OpenAPI schema.
+        """
+        return re.sub(r":\w+}", "}", path)
 
-    def SwaggerUIResponse(self, request: Request) -> HTMLResponse:
+    def parse_docstring(self, func_or_method: typing.Callable) -> dict:
+        """
+        Given a function, parse the docstring as YAML and return a dictionary of info.
+        """
+        docstring = func_or_method.__doc__
+        if not docstring:
+            return {}
+
+        # We support having regular docstrings before the schema
+        # definition. Here we return just the schema part from
+        # the docstring.
+        docstring = docstring.split("---")[-1]
+
+        parsed = yaml.safe_load(docstring)
+
+        if not isinstance(parsed, dict):
+            # A regular docstring (not yaml formatted) can return
+            # a simple string here, which wouldn't follow the schema.
+            return {}
+
+        return parsed
+
+    def OpenAPIResponse(self, request: AsyncRequest) -> AsyncResponse:
+        routes = request.app.routes
+        schema = self.get_schema(routes=routes)
+        return OpenAPIResponse(schema)
+
+    def SwaggerUIResponse(self, request: AsyncRequest) -> AsyncHTMLResponse:
         return get_swagger_ui_html(openapi_url=self.url_schema, title="Docs")
 
 
@@ -100,7 +149,7 @@ def get_swagger_ui_html(
     swagger_js_url: str = "https://cdn.jsdelivr.net/npm/swagger-ui-dist@4/swagger-ui-bundle.js",
     swagger_css_url: str = "https://cdn.jsdelivr.net/npm/swagger-ui-dist@4/swagger-ui.css",
     swagger_ui_parameters: dict = None,
-) -> HTMLResponse:
+) -> AsyncHTMLResponse:
     current_swagger_ui_parameters = swagger_ui_default_parameters.copy()
     if swagger_ui_parameters:
         current_swagger_ui_parameters.update(swagger_ui_parameters)
@@ -137,4 +186,4 @@ def get_swagger_ui_html(
     </body>
     </html>
     """
-    return HTMLResponse(html)
+    return AsyncHTMLResponse(html)

@@ -1,3 +1,4 @@
+from nuxt import config
 from nuxt.utils import maschema_to_apisepc
 from madara.wrappers import Request
 from webargs.core import ArgMap, ValidateArg, _UNKNOWN_DEFAULT_PARAM
@@ -40,7 +41,8 @@ class SyncParser(core.Parser):
 
         if isinstance(argmap, Mapping):
             argmap = ma.Schema.from_dict(argmap)()
-        spec = maschema_to_apisepc(argmap)
+        openapi_base_schema: dict = config["openapi"]["base_schema"]
+        spec = maschema_to_apisepc(argmap, openapi_base_schema["openapi"])
 
         def decorator(func):
             parsed: dict = yaml.safe_load(func.__doc__) if func.__doc__ else None

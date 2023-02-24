@@ -108,11 +108,11 @@ def make_async_response(*rv) -> AsyncResponse:
     return rv
 
 
-def maschema_to_apisepc(schema) -> dict:
+def maschema_to_apisepc(schema, openapi_version) -> dict:
     spec = APISpec(
         title="maschema",
         version="1.0.0",
-        openapi_version="3.0.2",
+        openapi_version=openapi_version,
         plugins=[MarshmallowPlugin()],
     )
     spec.components.schema("maschema", schema=schema)

@@ -136,7 +136,12 @@ def run(module: str, config: str, openapi: bool, openapi_url_path: str, static: 
     # 1. load user config
     cfg = {
         "debug": debug,
-        "openapi": openapi,
+        "openapi": {
+            "enable": openapi,
+            "base_schema": {
+                "openapi": "3.0.0"
+            }
+        },
         "static": static != ""
     }
     if config:
@@ -152,7 +157,8 @@ def run(module: str, config: str, openapi: bool, openapi_url_path: str, static: 
         module_type = importlib.import_module(_module)
     # 3. setup internel route
     if openapi:
-        schemas = SchemaGenerator({"openapi": "3.0.0", "info": {"title": "API", "version": "1.0"}}, url_prefx=openapi_url_path)
+        openapi_cfg: dict = cfg.get("openapi")
+        schemas = SchemaGenerator(openapi_cfg.get("base_schema"), url_prefx=openapi_url_path)
         entry_app.routes.extend(schemas.routes())
     if static:
         if not static_url_path:

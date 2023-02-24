@@ -9,6 +9,15 @@
     "template": {
         "path": "templates"
     },
+    "openapi": {
+        "base_schema": {
+            "openapi": "3.0.2",
+            "info": {
+                "title": "Example",
+                "version": "1.0.0"
+            }
+        }
+    },
     "gunicorn": {
         "access_log_format": "%(h)s %(l)s %(u)s %(t)s \"%(r)s\" %(s)s %(b)s \"%(f)s\" \"%(a)s\""
     }
