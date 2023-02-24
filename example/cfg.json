@@ -4,7 +4,10 @@
             "middleware.M1",
             "middleware.M2"
         ],
-        "async": []
+        "async": [
+            "async_middleware.M3",
+            "async_middleware.M4"
+        ]
     },
     "template": {
         "path": "templates"

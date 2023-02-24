@@ -5,7 +5,7 @@ from nuxt.routing import BaseRoute, Route
 from nuxt.datastructures import ImmutableDict
 from nuxt.requests import SyncRequest, AsyncRequest, WebSocket
 from nuxt.exceptions import SyncHTTPException, SyncNotFound, SyncInternalServerError
-from nuxt.utils import format_pattern, endpoint_from_view_func, load_config, make_sync_response, make_async_response
+from nuxt.utils import format_pattern, endpoint_from_view_func, load_config, import_string, make_sync_response, make_async_response
 from concurrent.futures import ThreadPoolExecutor
 from a2wsgi.types import Receive, Scope, Send, WSGIApp, ASGIApp
 from a2wsgi.wsgi import WSGIResponder
@@ -175,6 +175,7 @@ class ASGIBlueprint:
         self.deferred_functions = []
         self.endpoint_map = {}
         self.base_app: Starlette = None
+        self._middleware_chain = None
 
     def record(self, func):
         self.deferred_functions.append(func)
@@ -187,8 +188,16 @@ class ASGIBlueprint:
         state = self.make_setup_state(app, options)
         for deferred in self.deferred_functions:
             deferred(state)
+        middlewares = options.get("middlewares", [])
+        handler = self.dispatch_request
+        for md in reversed(middlewares):
+            mw = md
+            if isinstance(md, str):
+                mw = import_string(md)
+            handler = mw(handler)
+        self._middleware_chain = handler
 
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+    async def dispatch_request(self, scope: Scope, receive: Receive, send: Send) -> None:
         if self.base_app is None:
             raise Exception("ASGIBlueprint {} not registered".format(self.name))
         endpoint = scope["nuxt_endpoint"]
@@ -210,6 +219,9 @@ class ASGIBlueprint:
 
         response = make_async_response(rv)
         await response(scope, receive, send)
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        await self._middleware_chain(scope, receive, send)
 
     def get_responder(self, endpoint: str, func):
         self.endpoint_map[endpoint] = func
@@ -249,15 +261,31 @@ class ASGIBlueprint:
 class ASGIApplication:
 
     def __init__(self, app: Starlette, config: dict = None) -> None:
-        self.base_app = app
+        self.base_app, self.config = app, config
         self.endpoint_map = {}
         self.blueprints = {}
+        self._middleware_chain = None
+        self.load_middleware()
 
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+    def load_middleware(self):
+        middlewares = self.config.get("middlewares", [])
+        handler = self.dispatch_request
+        for md in reversed(middlewares):
+            mw = md
+            if isinstance(md, str):
+                mw = import_string(md)
+            handler = mw(handler)
+        self._middleware_chain = handler
+
+    async def dispatch_request(self, scope: Scope, receive: Receive, send: Send) -> None:
         endpoint = scope["nuxt_endpoint"]
         endpoint_func = self.endpoint_map.get(endpoint, None)
         if not endpoint_func:
             await self.base_app.router.not_found(scope, receive, send)
+            return
+
+        if isinstance(endpoint_func, ASGIApplicationResponder):
+            await endpoint_func(scope, receive, send)
             return
 
         is_websocket = scope["type"] == "websocket"
@@ -274,6 +302,9 @@ class ASGIApplication:
         response = make_async_response(rv)
         await response(scope, receive, send)
 
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        await self._middleware_chain(scope, receive, send)
+
     def get_responder(self, endpoint: str, func):
         self.endpoint_map[endpoint] = func
         return ASGIApplicationResponder(self, endpoint, func)
@@ -284,15 +315,32 @@ class ASGIApplication:
                 blueprint, self.blueprints[blueprint.name]))
         else:
             self.blueprints[blueprint.name] = blueprint
-        blueprint.register(self.base_app, options)
+        blueprint.register(self, options)
+
+    def add_route(
+        self,
+        path: str,
+        route: typing.Callable,
+        methods: typing.Optional[typing.List[str]] = None,
+        name: typing.Optional[str] = None,
+        include_in_schema: bool = True,
+    ) -> None:
+        self.base_app.add_route(
+            path, self.get_responder(name, route), methods=methods, name=name, include_in_schema=include_in_schema
+        )
+
+    def add_websocket_route(
+        self, path: str, route: typing.Callable, name: typing.Optional[str] = None
+    ) -> None:
+        self.base_app.add_websocket_route(path, self.get_responder(name, route), name=name)
 
     def route(self, pattern: str, **options) -> typing.Callable:
 
         def decorator(func: typing.Callable) -> typing.Callable:
             endpoint = "async.%s" % (options.get("endpoint") if options.get("endpoint") else endpoint_from_view_func(func))
-            self.base_app.add_route(
+            self.add_route(
                 format_pattern(pattern),
-                self.get_responder(endpoint, func),
+                func,
                 methods=options.get("methods"),
                 name=endpoint,
                 include_in_schema=options.get("include_in_schema", True),
@@ -305,7 +353,7 @@ class ASGIApplication:
 
         def decorator(func: typing.Callable) -> typing.Callable:
             endpoint = "async.%s" % (options.get("endpoint") if options.get("endpoint") else endpoint_from_view_func(func))
-            self.base_app.add_websocket_route(format_pattern(pattern), self.get_responder(endpoint, func), name=endpoint)
+            self.add_websocket_route(format_pattern(pattern), func, name=endpoint)
             return func
 
         return decorator

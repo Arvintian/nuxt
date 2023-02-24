@@ -13,6 +13,8 @@ async def index(request):
 
 @route("/async/user/<string:name>", methods=["GET"])
 async def user_info(request, name):
+    if name != "zoe":
+        raise Exception("I not know you {}".format(name))
     return render_html(request, "user/info.html", name=name)
 
 
@@ -92,7 +94,11 @@ async def bp_ws_echo(socket: WebSocket):
 
 @bp_async.route("/user/<string:name>", methods=["GET"])
 async def bp_user_info(request, name):
+    """
+    tags:
+      - test
+    """
     logger.info("user name %s" % name)
     return render_html(request, "user/info.html", name=name)
 
-register_blueprint(bp_async, url_prefix="/asyncbp")
+register_blueprint(bp_async, url_prefix="/asyncbp", middlewares=["async_middleware.M5"])

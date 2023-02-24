@@ -2,7 +2,7 @@ from nuxt.responses import AsyncResponse, AsyncJSONResponse
 from nuxt.datastructures import AsyncHeaders
 from madara.utils import _endpoint_from_view_func as endpoint_from_view_func
 from madara.wrappers import make_response as make_sync_response
-from madara.utils import load_config
+from madara.utils import load_config, import_string
 from werkzeug.local import LocalProxy
 from apispec.ext.marshmallow import MarshmallowPlugin
 from apispec import APISpec
