@@ -1,12 +1,13 @@
 madara>=0.1.1
 gunicorn>=20.0.4
 click>=7.1.2
-webargs>=8.0.1
+webargs>=8.2.0
 marshmallow>=3.18.0
 apispec>=6.0.2
 inotify>=0.2.10
 uvicorn[standard]>=0.17.6
 a2wsgi>=1.4.1
 starlette>=0.21.0
+python-multipart>=1.12.0
 jinja2>=3.1.2
 pyyaml>=6.0

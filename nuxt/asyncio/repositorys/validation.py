@@ -1,5 +1,5 @@
 from nuxt.utils import maschema_to_apisepc
-from madara.wrappers import Request
+from starlette.requests import Request
 from webargs.core import ArgMap, ValidateArg, _UNKNOWN_DEFAULT_PARAM
 from webargs import fields as WebargsFields
 from webargs import core
@@ -13,7 +13,7 @@ class ValidateException(Exception):
     pass
 
 
-class SyncParser(core.Parser):
+class AsyncParser(core.Parser):
 
     DEFAULT_UNKNOWN_BY_LOCATION: typing.Dict[str, typing.Optional[str]] = {
         "view_args": ma.RAISE,
@@ -71,35 +71,34 @@ class SyncParser(core.Parser):
             return inner_decorator(func)
         return decorator
 
-    def _raw_load_json(self, req: Request):
-        if not core.is_json(req.mimetype):
-            return core.missing
-
-        return core.parse_json(req.get_data(cache=True))
+    async def load_json(self, req: Request, schema: ma.Schema) -> typing.Any:
+        return await req.json()
 
     def load_view_args(self, req: Request, schema):
         """Return the request's ``view_args`` or ``missing`` if there are none."""
-        return req.view_args or core.missing
+        return req.path_params or core.missing
 
     def load_querystring(self, req: Request, schema):
         """Return query params from the request as a MultiDictProxy."""
-        return self._makeproxy(req.args, schema)
+        return self._makeproxy(req.query_params, schema)
 
-    def load_form(self, req: Request, schema):
+    async def load_form(self, req: Request, schema):
         """Return form values from the request as a MultiDictProxy."""
-        return self._makeproxy(req.form, schema)
+        return await req.form()
 
     def load_cookies(self, req: Request, schema):
         """Return cookies from the request."""
-        return req.cookies
+        return self._makeproxy(req.cookies, schema)
 
     def load_headers(self, req: Request, schema):
         """Return headers from the request."""
         return self._makeproxy(req.headers, schema)
 
     def load_files(self, req: Request, schema):
-        """Return files from the request as a MultiDictProxy."""
-        return self._makeproxy(req.files, schema)
+        raise NotImplementedError(
+            "load_files is not implemented. You may be able to use load_form for "
+            "parsing upload data."
+        )
 
     def get_request_from_view_args(self, view, args, kwargs):
         return args[0]
@@ -108,7 +107,7 @@ class SyncParser(core.Parser):
         raise ValidateException(error)
 
 
-parser = SyncParser()
+parser = AsyncParser()
 use_args = parser.use_args
 use_kwargs = parser.use_kwargs
 fields = WebargsFields

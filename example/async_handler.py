@@ -3,6 +3,7 @@ from nuxt.asyncio import Blueprint, register_blueprint
 from nuxt.asyncio import Request, Response, WebSocket, WebSocketDisconnect
 from nuxt.asyncio import render_template, render_html
 from nuxt.asyncio import route, websocket_route
+from nuxt.asyncio.repositorys.validation import fields, use_args
 
 
 @route("/async", methods=["GET"])
@@ -23,16 +24,38 @@ async def demo_args(request, arg: str):
     }
 
 
-@route("/async/openapi", methods=["GET"])
-async def demo_openapi(request):
+@route("/async/openapi", methods=["POST"])
+@use_args({"user_id": fields.Int(required=True)}, location="form")
+@use_args({"user_name": fields.Str(required=False)}, location="query")
+async def demo_openapi(request: Request, form_args: dict, query_args: dict,  **kwargs):
     """
-    responses:
-      200:
-        description: A Hello.
+    tags:
+      - test
     """
     return {
         "code": 200,
-        "result": "hello world"
+        "result": {
+            "query": query_args,
+            "form": form_args
+        }
+    }
+
+
+@route("/async/openapi2/<int:user_id>", methods=["POST"])
+@use_args({"user_id": fields.Int(required=True)}, location="path")
+@use_args({"user_name": fields.Str(required=False)}, location="json")
+async def demo_openapi2(request: Request, path_args: dict, json_args: dict, user_id: int):
+    """
+    tags:
+      - test
+    """
+    return {
+        "code": 200,
+        "result": {
+            "json": json_args,
+            "path": path_args,
+            "user_id": user_id
+        }
     }
 
 
