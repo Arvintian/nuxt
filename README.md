@@ -17,15 +17,18 @@ pip install nuxt
 Usage: nuxt [OPTIONS]
 
 Options:
-  --module TEXT           Your python module.
-  --config TEXT           Your nuxt app config json file path.
-  --static TEXT           Your static file directory path.
-  --static-url-path TEXT  Your static url path.
-  --debug BOOLEAN         Enable nuxt app debug mode.
-  --address TEXT          Listen and serve address.
-  --port INTEGER          Listen and serve port.
-  --workers INTEGER       Prefork work count, default is cpu core count.
-  --help                  Show this message and exit.
+  --module TEXT            Your python module.
+  --config TEXT            Your nuxt app config json file path.
+  --openapi BOOLEAN        Enable openapi schema and swagger ui.
+  --openapi-url-path TEXT  Openapi schema and ui path, default is /docs
+  --static TEXT            Your static file directory path.
+  --static-index BOOLEAN   Display the index page if path in static is dir.
+  --static-url-path TEXT   Your static url path, default is static directory path basename.
+  --debug BOOLEAN          Enable nuxt app debug mode.
+  --address TEXT           Listen and serve address.
+  --port INTEGER           Listen and serve port.
+  --workers INTEGER        Prefork work count, default is cpu core count.
+  --help                   Show this message and exit.
 
 ```
 
@@ -120,23 +123,6 @@ The nuxt request object just a warp of [werkzeug request](https://werkzeug.palle
 
 The return value from a view function is automatically converted into a [werkzeug response](https://werkzeug.palletsprojects.com/en/1.0.x/wrappers/#werkzeug.wrappers.Response) for you. If the return value is a dict, which will serialize any supported JSON data type and set mimetype to application/json.
 
-### Websocket
-
-Nuxt's websocket route implemented by [starlette](https://www.starlette.io/websockets/). The handler function is a [ASGI](https://asgi.readthedocs.io/en/latest/) application, so you should write the handler function with python's [asyncio](https://docs.python.org/3/library/asyncio.html).
-
-```
-from nuxt import websocket_route,WebSocket
-
-@websocket_route("/ws/echo")
-async def ws_echo(socket: WebSocket):
-    await socket.accept()
-    try:
-        while True:
-            text = await socket.receive_text()
-            await socket.send_text(text)
-    except WebSocketDisconnect as e:
-        pass
-```
 
 ### Template
 
@@ -155,7 +141,7 @@ def index(request):
 
 ### Static
 
-Nuxt can be convenient serve static files, internally based on [starlette](https://www.starlette.io/staticfiles/) and [asyncio](https://docs.python.org/3/library/asyncio.html).
+Nuxt can be convenient serve static files.
 
 ```
 
@@ -222,6 +208,69 @@ The `get_response` callable provided by Nuxt might be the actual view (if this i
 
 Nuxt calls `process_exception()` when a view raises an exception. process_exception() should return either None or an response object.
 
-### Design
+
+## AsyncIO
+
+The AsyncIO submodule of Nuxt supports Python's asyncio, allowing Request and Response objects to work in asynchronous mode. Additionally, it enables the implementation of Websockets. Route and Blueprint in an asynchronous manner while maintaining consistency with synchronous mode.
+
+```
+from nuxt.asyncio import Blueprint, register_blueprint
+from nuxt.asyncio import Request, WebSocket, WebSocketDisconnect
+from nuxt.asyncio import route, websocket_route
+
+
+@websocket_route("/ws/echo")
+async def ws_echo(socket: WebSocket):
+    await socket.accept()
+    try:
+        while True:
+            text = await socket.receive_text()
+            recv = "echo:{}".format(text)
+            await socket.send_text(recv)
+    except WebSocketDisconnect as e:
+        pass
+
+
+@route("/user/<string:name>", methods=["GET"])
+async def user_info(request: Request, name):
+    return "hello,{}".format(name)
+
+
+bp_async = Blueprint("bp_async")
+
+
+@bp_async.websocket_route("/ws/echo")
+async def bp_ws_echo(socket: WebSocket):
+    await socket.accept()
+    try:
+        while True:
+            text = await socket.receive_text()
+            recv = "echo:{}".format(text)
+            await socket.send_text(recv)
+    except WebSocketDisconnect as e:
+        pass
+
+
+@bp_async.route("/user/<string:name>", methods=["GET"])
+async def bp_user_info(request, name):
+    return "hello,{}".format(name)
+
+register_blueprint(bp_async, url_prefix="/asyncbp")
+```
+
+In asynchronous mode, nuxt's objects is warp of starlette's [request](https://www.starlette.io/requests/) and [response](https://www.starlette.io/responses/) and [websocket](https://www.starlette.io/websockets/).
+
+
+## API Schemas
+
+Nuxt supports automatically generating API schemas and provides web documentation pages based on Swagger.
+
+```
+nuxt --module example --openapi true
+
+> schemas page on: http://127.0.0.1:5000/docs
+```
+
+## Design
 
 Nuxt use uvicorn web server as the frontend, dispatch http request to wsgi/madara handlers or static file handlers, dispatch websocket request to asgi/starlette handlers.
