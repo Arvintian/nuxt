@@ -1,19 +1,31 @@
-# nuxt
+# Nuxt
 
 Nuxt is a integration framework for build web app with python, built on top of [Madara](https://github.com/Arvintian/madara)/[Starlette](https://github.com/encode/starlette)/[Gunicorn](https://github.com/benoitc/gunicorn)/[Uvicorn](https://github.com/encode/uvicorn).
+
+* [Install](#install)
+* [Usage](#usage)
+* [QuickStart](#quickstart)
+* [User’s Guide](#users-guide)
+    * [Routing](#routing)
+    * [Request](#request)
+    * [Response](#response)
+    * [Template](#template)
+    * [Static](#static)
+    * [Blueprint](#blueprint)
+    * [Middleware](#middleware)
+* [AsyncIO](#asyncio)
+* [API Schemas](#api-schemas)
+* [Design](#design)
 
 ## Install
 
 ```
-
 pip install nuxt
-
 ```
 
 ## Usage
 
 ```
-
 Usage: nuxt [OPTIONS]
 
 Options:
@@ -29,14 +41,12 @@ Options:
   --port INTEGER           Listen and serve port.
   --workers INTEGER        Prefork work count, default is cpu core count.
   --help                   Show this message and exit.
-
 ```
 
 
 ## QuickStart
 
 ```
-
 > cat example.py
 
 from nuxt import route
@@ -57,7 +67,6 @@ def demo(request):
 [2021-04-27 12:07:56 +0800] [4288] [INFO] Booting worker with pid: 4288
 
 > curl -v http://127.0.0.1:5000/demo
-
 ```
 
 ## User’s Guide
@@ -129,14 +138,12 @@ The return value from a view function is automatically converted into a [werkzeu
 Nuxt's template engine powered by [jinja](https://jinja.palletsprojects.com/en/3.1.x/).
 
 ```
-
 from nuxt import render_template
 from nuxt import route
 
 @route("/", methods=["GET"])
 def index(request):
     return render_template(request, "index.html", user="Arvin"), {"content-type": "text/html"}
-
 ```
 
 ### Static
@@ -144,9 +151,7 @@ def index(request):
 Nuxt can be convenient serve static files.
 
 ```
-
 nuxt --static <directory path> --static-url-path  <request base url path>
-
 ```
 
 ### Blueprint
@@ -154,7 +159,6 @@ nuxt --static <directory path> --static-url-path  <request base url path>
 A Blueprint is a way to organize a group of related views and other code. Rather than registering views and other code directly with an application, they are registered with a blueprint.
 
 ```
-
 from nuxt import Blueprint,register_blueprint
 
 bp_example = Blueprint("bp_example")
@@ -168,7 +172,6 @@ def blueprint_route(request: Request):
     }
 
 register_blueprint(bp_example, url_prefix="/blueprint")
-
 ```
 
 ### Middleware
@@ -176,7 +179,6 @@ register_blueprint(bp_example, url_prefix="/blueprint")
 Middleware is a framework of hooks into Nuxt’s request/response processing. It’s a light, low-level “plugin” system for globally altering input or output.
 
 ```
-
 class SimpleMiddleware:
 
     def __init__(self, get_response):
@@ -199,7 +201,6 @@ class SimpleMiddleware:
 
     def process_exception(self, request, exception):
         return None
-
 ```
 
 The `get_response` callable provided by Nuxt might be the actual view (if this is the last listed middleware) or it might be the next middleware in the chain.
