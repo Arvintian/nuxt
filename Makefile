@@ -1,5 +1,5 @@
 build: clean
-	python -m build --sdist
+	python -m build -n --sdist
 
 publish: build
 	twine upload -r pypi dist/*
