@@ -13,6 +13,9 @@ async def index(request):
 
 @route("/async/user/<string:name>", methods=["GET"])
 async def user_info(request, name):
+    """
+    userinfo
+    """
     if name != "zoe":
         raise Exception("I not know you {}".format(name))
     return render_html(request, "user/info.html", name=name)

@@ -46,7 +46,7 @@ class SyncParser(core.Parser):
 
         def decorator(func):
             parsed: dict = yaml.safe_load(func.__doc__) if func.__doc__ else None
-            if not parsed:
+            if not isinstance(parsed, dict) or not parsed:
                 parsed = {"parameters": []}
             parameters = parsed.get("parameters", [])
             if location in ["view_args", "path", "querystring", "query"]:
