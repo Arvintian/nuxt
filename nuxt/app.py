@@ -7,7 +7,8 @@ from nuxt.requests import SyncRequest, AsyncRequest, WebSocket
 from nuxt.exceptions import SyncHTTPException, SyncNotFound, SyncInternalServerError
 from nuxt.utils import format_pattern, endpoint_from_view_func, load_config, import_string, make_sync_response, make_async_response
 from concurrent.futures import ThreadPoolExecutor
-from a2wsgi.types import Receive, Scope, Send, WSGIApp, ASGIApp
+from a2wsgi.asgi_typing import Receive, Scope, Send, ASGIApp
+from a2wsgi.wsgi_typing import WSGIApp
 from a2wsgi.wsgi import WSGIResponder
 import traceback
 import typing
