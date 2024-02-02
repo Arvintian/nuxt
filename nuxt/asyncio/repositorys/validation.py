@@ -86,6 +86,7 @@ class AsyncParser(core.Parser):
 
     async def load_form(self, req: Request, schema):
         """Return form values from the request as a MultiDictProxy."""
+        # The `python-multipart` library must be installed to use form parsing
         return await req.form()
 
     def load_cookies(self, req: Request, schema):
