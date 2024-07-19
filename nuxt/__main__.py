@@ -93,7 +93,7 @@ def start_server(address, port, workers, module):
         gunicorn_options.update(gunicorn_cfg)
     gunicorn_options.update({
         "debug": entry_app.config.get("debug", False),
-        "worker_class": "uvicorn.workers.UvicornWorker"
+        "worker_class": "uvicorn_worker.UvicornWorker"
     })
     if entry_app.config.get("debug"):
         gunicorn_options.update({"workers": 1})
