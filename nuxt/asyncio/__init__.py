@@ -1,5 +1,5 @@
 from nuxt.requests import AsyncRequest as Request
-from nuxt.requests import WebSocket
+from nuxt.requests import WebSocket, WebSocketState
 from nuxt.exceptions import WebSocketDisconnect
 from nuxt.responses import AsyncResponse as Response
 from nuxt.responses import AsyncJSONResponse as JSONResponse

@@ -1,6 +1,6 @@
 from nuxt import config, logger
 from nuxt.asyncio import Blueprint, register_blueprint
-from nuxt.asyncio import Request, Response, WebSocket, WebSocketDisconnect
+from nuxt.asyncio import Request, Response, WebSocket, WebSocketDisconnect, WebSocketState
 from nuxt.asyncio import render_template, render_html
 from nuxt.asyncio import route, websocket_route
 from nuxt.asyncio.repositorys.validation import fields, use_args
@@ -93,6 +93,9 @@ async def bp_ws_echo(socket: WebSocket):
         pass
     except Exception as e:
         logger.error(e)
+    finally:
+        if socket.client_state != WebSocketState.DISCONNECTED:
+            await socket.close()
 
 
 @bp_async.route("/user/<string:name>", methods=["GET"])
