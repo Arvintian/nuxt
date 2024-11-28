@@ -125,12 +125,12 @@ class WSGIApplication(Madara):
 
 class ASGIApplicationResponder:
 
-    def __init__(self, app: ASGIApp, endpoint: str, func: typing.Callable) -> None:
-        self.app, self.endpoint = app, endpoint
+    def __init__(self, app: ASGIApp, endpoint: str, func: typing.Callable, sub_app=False) -> None:
+        self.app, self.endpoint, self.sub_app = app, endpoint, sub_app
         self.__doc__ = func.__doc__
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        scope.update({"nuxt_endpoint": self.endpoint})
+        scope.update({"nuxt_endpoint": self.endpoint, "nuxt_sub_app": self.sub_app})
         await self.app(scope, receive, send)
 
 
@@ -285,7 +285,8 @@ class ASGIApplication:
             await self.base_app.router.not_found(scope, receive, send)
             return
 
-        if isinstance(endpoint_func, ASGIApplicationResponder):
+        # blueprint endpoint warp an another ASGIApplicationResponder
+        if isinstance(endpoint_func, ASGIApplicationResponder) or scope.get("nuxt_sub_app"):
             await endpoint_func(scope, receive, send)
             return
 
@@ -306,9 +307,9 @@ class ASGIApplication:
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         await self._middleware_chain(scope, receive, send)
 
-    def get_responder(self, endpoint: str, func):
+    def get_responder(self, endpoint: str, func, sub_app=False):
         self.endpoint_map[endpoint] = func
-        return ASGIApplicationResponder(self, endpoint, func)
+        return ASGIApplicationResponder(self, endpoint, func, sub_app=sub_app)
 
     def register_blueprint(self, blueprint: ASGIBlueprint, **options) -> None:
         if blueprint.name in self.blueprints:
@@ -335,6 +336,11 @@ class ASGIApplication:
     ) -> None:
         self.base_app.add_websocket_route(path, self.get_responder(name, route), name=name)
 
+    def add_mount(
+        self, path: str, route: typing.Callable, name: typing.Optional[str] = None
+    ) -> None:
+        self.base_app.mount(path, self.get_responder(name, route, sub_app=True), name=name)
+
     def route(self, pattern: str, **options) -> typing.Callable:
 
         def decorator(func: typing.Callable) -> typing.Callable:
@@ -358,6 +364,10 @@ class ASGIApplication:
             return func
 
         return decorator
+
+    def mount(self, pattern: str, func: typing.Callable, **options) -> None:
+        endpoint = "async.%s" % (options.get("endpoint") if options.get("endpoint") else endpoint_from_view_func(func))
+        self.add_mount(format_pattern(pattern), func, name=endpoint)
 
 
 class NuxtApplication:

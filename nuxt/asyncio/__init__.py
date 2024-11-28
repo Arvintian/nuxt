@@ -14,3 +14,4 @@ from nuxt.utils import LocalProxy as __LocalProxy
 route = __LocalProxy(lambda: __entry_app.asgi_app.route)
 websocket_route = __LocalProxy(lambda: __entry_app.asgi_app.websocket_route)
 register_blueprint = __LocalProxy(lambda: __entry_app.asgi_app.register_blueprint)
+mount = __LocalProxy(lambda: __entry_app.asgi_app.mount)

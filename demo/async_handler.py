@@ -2,8 +2,9 @@ from nuxt import config, logger
 from nuxt.asyncio import Blueprint, register_blueprint
 from nuxt.asyncio import Request, Response, WebSocket, WebSocketDisconnect, WebSocketState
 from nuxt.asyncio import render_template, render_html
-from nuxt.asyncio import route, websocket_route
+from nuxt.asyncio import route, websocket_route, mount
 from nuxt.asyncio.repositorys.validation import fields, use_args
+from nuxt.asyncio.proxies import make_proxy_response
 
 
 @route("/async", methods=["GET"])
@@ -108,3 +109,5 @@ async def bp_user_info(request, name):
     return render_html(request, "user/info.html", name=name)
 
 register_blueprint(bp_async, url_prefix="/asyncbp", middlewares=["async_middleware.M5"])
+# proxy pass all sub route to backend server
+mount("/proxy", make_proxy_response("http://127.0.0.1:6000"))
