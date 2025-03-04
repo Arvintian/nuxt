@@ -3,7 +3,8 @@ from starlette.staticfiles import PathLike
 from starlette.datastructures import URL
 from starlette.exceptions import HTTPException
 from starlette.responses import FileResponse, RedirectResponse, Response
-from starlette.types import Scope
+from starlette.types import Scope, Receive, Send
+from starlette.websockets import WebSocket
 from html import escape as htmlescape
 from urllib import parse as urllibparse
 import typing
@@ -24,6 +25,24 @@ class StaticFiles(_StaticFiles):
                  list_directory: bool = False) -> None:
         super().__init__(directory=directory, packages=packages, html=html, check_dir=check_dir, follow_symlink=follow_symlink)
         self.is_list_directory = list_directory
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """
+        The ASGI entry point.
+        """
+        if scope["type"] == "websocket":
+            socket = WebSocket(scope=scope, receive=receive, send=send)
+            return await socket.close()
+
+        assert scope["type"] == "http"
+
+        if not self.config_checked:
+            await self.check_config()
+            self.config_checked = True
+
+        path = self.get_path(scope)
+        response = await self.get_response(path, scope)
+        await response(scope, receive, send)
 
     async def get_response(self, path: str, scope: Scope) -> Response:
         """
