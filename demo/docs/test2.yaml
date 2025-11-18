@@ -1,0 +1,27 @@
+tags:
+  - openapi
+summary: 根据ID获取用户22222
+parameters:
+  - name: id
+    in: path
+    required: true
+    description: 用户ID
+    schema:
+      type: integer
+      example: 123
+requestBody:
+  description: 用户更新信息
+  required: true
+  content:
+    application/json:
+      schema:
+        type: object
+        properties:
+          name:
+            type: string
+            example: "李四"
+        required:
+          - name
+responses:
+  '200':
+    description: 成功获取用户信息

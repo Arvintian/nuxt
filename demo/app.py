@@ -18,17 +18,49 @@ def user_info(request, name):
 
 
 @route("/openapi", methods=["PUT"])
-def openapi(request: Request, query_args: dict, form_args: dict):
+def openapi(request: Request):
     """
-    tags:
-      - test
+    __doc__: docs/test.yaml
+    __ref__: openapi
     """
     return {
         "code": 200,
-        "result": {
-            "user_id": query_args,
-            "user_name": form_args
-        }
+        "result": {}
+    }
+
+
+@route("/openapi1", methods=["PUT"])
+def openapi1(request: Request):
+    """
+    __doc__: docs/test.yaml
+    __ref__: openapi1
+    """
+    return {
+        "code": 200,
+        "result": {}
+    }
+
+
+@route("/openapi2", methods=["PUT"])
+def openapi2(request: Request):
+    """
+    __doc__: docs/test2.yaml
+    """
+    return {
+        "code": 200,
+        "result": {}
+    }
+
+
+@route("/openapi3", methods=["PUT"])
+def openapi3(request: Request):
+    """
+    __doc__: docs/test.yaml
+    __ref__: openapi3
+    """
+    return {
+        "code": 200,
+        "result": {}
     }
 
 

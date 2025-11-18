@@ -6,6 +6,7 @@ import typing
 import json
 import yaml
 import re
+import os
 
 swagger_ui_default_parameters = {
     "dom_id": "#swagger-ui",
@@ -35,6 +36,8 @@ class SchemaGenerator:
         self.base_schema = base_schema
         self.url_prefix = url_prefx
         self.url_schema = "%s/%s" % (self.url_prefix.rstrip("/"), "openapi")
+        self.refs = {}
+        self.refs_hash = {}
 
     def routes(self):
         return [
@@ -48,6 +51,8 @@ class SchemaGenerator:
         endpoints_info = self.get_endpoints(routes)
         for endpoint in endpoints_info:
             parsed = self.parse_docstring(endpoint.func)
+            if not parsed.get("include_in_schema", True):
+                continue
             if "responses" not in parsed:
                 parsed.update({
                     "responses": {
@@ -133,6 +138,15 @@ class SchemaGenerator:
             # A regular docstring (not yaml formatted) can return
             # a simple string here, which wouldn't follow the schema.
             return {}
+
+        if "__doc__" in parsed:
+            doc, ref = parsed.get("__doc__"), parsed.get("__ref__")
+            last_modified = os.path.getmtime(doc)
+            if doc not in self.refs or last_modified != self.refs_hash.get(doc):
+                with open(doc, encoding="utf-8") as fd:
+                    self.refs[doc] = yaml.safe_load(fd.read())
+                    self.refs_hash[doc] = last_modified
+            parsed = self.refs.get(doc, {}) if not ref else self.refs.get(doc, {}).get(ref, {})
 
         return parsed
 
