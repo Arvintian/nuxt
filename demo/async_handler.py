@@ -53,7 +53,7 @@ async def demo_openapi(request: Request, form_args: dict, query_args: dict,  **k
 async def demo_openapi2(request: Request, path_args: dict, json_args: dict, user_id: int):
     """
     tags:
-      - test
+      - async
     """
     return {
         "code": 200,
@@ -67,6 +67,10 @@ async def demo_openapi2(request: Request, path_args: dict, json_args: dict, user
 
 @websocket_route("/async/ws/echo")
 async def ws_echo(socket: WebSocket):
+    """
+    tags:
+      - websocket
+    """
     await socket.accept()
     try:
         while True:
@@ -84,6 +88,10 @@ bp_async = Blueprint("bp_async")
 
 @bp_async.websocket_route("/ws/echo")
 async def bp_ws_echo(socket: WebSocket):
+    """
+    tags:
+      - websocket
+    """
     await socket.accept()
     try:
         while True:
@@ -103,7 +111,7 @@ async def bp_ws_echo(socket: WebSocket):
 async def bp_user_info(request, name):
     """
     tags:
-      - test
+      - asyncbp
     """
     logger.info("user name %s" % name)
     return render_html(request, "user/info.html", name=name)

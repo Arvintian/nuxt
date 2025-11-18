@@ -60,10 +60,39 @@ bp_api = Blueprint("bp_api")
 
 @bp_api.route("/demo", methods=["GET"])
 def api_demo(request):
+    """
+    tags:
+      - syncbp
+    summary: 根据ID获取用户
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: 用户ID
+        schema:
+          type: integer
+          example: 123
+    requestBody:
+      description: 用户更新信息
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name:
+                type: string
+                example: "李四"
+            required:
+              - name
+    responses:
+      '200':
+        description: 成功获取用户信息
+    """
     return {
         "code": 200,
         "result": "bp api demo"
     }
 
 
-register_blueprint(bp_api, url_prefix="/api")
+register_blueprint(bp_api, url_prefix="/bpsync")

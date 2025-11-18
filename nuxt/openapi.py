@@ -1,5 +1,5 @@
 from nuxt.app import WSGIApplicationResponder, ASGIApplicationResponder
-from nuxt.routing import BaseRoute, Route, Mount
+from nuxt.routing import BaseRoute, Route, Mount, WebSocketRoute
 from nuxt.responses import AsyncHTMLResponse, AsyncResponse
 from nuxt.requests import AsyncRequest
 import typing
@@ -88,17 +88,20 @@ class SchemaGenerator:
                 ]
                 endpoints_info.extend(sub_endpoints)
 
-            elif not isinstance(route, Route) or not route.include_in_schema:
-                continue
+            if isinstance(route, Route) and route.include_in_schema:
+                if isinstance(route.endpoint, (ASGIApplicationResponder, WSGIApplicationResponder)):
+                    path = self._remove_converter(route.path)
+                    for method in route.methods or ["GET"]:
+                        if method == "HEAD":
+                            continue
+                        endpoints_info.append(
+                            EndpointInfo(path, method.lower(), route.endpoint)
+                        )
 
-            elif isinstance(route.endpoint, ASGIApplicationResponder) or isinstance(route.endpoint, WSGIApplicationResponder):
-                path = self._remove_converter(route.path)
-                for method in route.methods or ["GET"]:
-                    if method == "HEAD":
-                        continue
-                    endpoints_info.append(
-                        EndpointInfo(path, method.lower(), route.endpoint)
-                    )
+            if isinstance(route, WebSocketRoute):
+                if isinstance(route.endpoint, ASGIApplicationResponder):
+                    path = self._remove_converter(route.path)
+                    endpoints_info.append(EndpointInfo(path, "get", route.endpoint))
 
         return endpoints_info
 

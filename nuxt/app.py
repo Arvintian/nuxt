@@ -47,7 +47,9 @@ class WSGIBlueprint(MadaraBlueprint):
         def decorator(func):
             endpoint = options.pop("endpoint", func.__name__)
             self.endpoint_map["sync.%s.%s" % (self.name, endpoint)] = func
-            self.add_url_rule(pattern, endpoint, self.view_entry, **options)
+            _view_entry = lambda req, **view_args: self.view_entry(req, **view_args)
+            _view_entry.__doc__ = func.__doc__
+            self.add_url_rule(pattern, endpoint, _view_entry, **options)
             return func
 
         return decorator
