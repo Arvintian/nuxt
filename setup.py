@@ -10,7 +10,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 
 setup_args = dict(
     name='nuxt',
-    version='0.2.13',
+    version='0.2.14',
     description='A integration framework for build web app.',
     long_description="Nuxt is a integration framework for build web app, built on top of [Madara](https://github.com/Arvintian/madara)/[Starlette](https://github.com/encode/starlette)/[Gunicorn](https://github.com/benoitc/gunicorn)/[Uvicorn](https://github.com/encode/uvicorn).",
     long_description_content_type="text/markdown",

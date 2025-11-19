@@ -1,8 +1,8 @@
 madara>=0.1.2
 gunicorn>=20.0.4
 click>=7.1.2
-webargs>=8.2.0
-marshmallow>=3.18.0
+webargs==8.2.0
+marshmallow==3.18.0
 apispec>=6.0.2
 inotify==0.2.10
 uvicorn[standard]>=0.17.6
