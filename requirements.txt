@@ -5,7 +5,7 @@ webargs==8.2.0
 marshmallow==3.18.0
 apispec>=6.0.2
 inotify==0.2.10
-uvicorn[standard]>=0.17.6
+uvicorn[standard]>=0.17.6,<0.36.0
 uvicorn-worker>=0.2.0
 a2wsgi==1.10.0
 starlette==0.52.1
